@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <type_traits>
 #include "slab_alloc.cuh"
 
 #define CHECK_CUDA_ERROR(call)                                                          \
@@ -58,6 +60,7 @@ struct __align__(32) key_only_slab {
   uint32_t next_ptr_index[1];
 };
 
+#if 0
 template <typename KeyT, typename ValueT>
 struct __align__(32) phase_concurrent_slab {
   static constexpr uint32_t NUM_ELEMENTS_PER_SLAB = 31u;
@@ -66,6 +69,22 @@ struct __align__(32) phase_concurrent_slab {
 
   // value storage:
   ValueT values[NUM_ELEMENTS_PER_SLAB];
+};
+#endif
+
+template <typename KeyT, typename ValueT>
+struct __align__(32) PhaseConcurrentKeySlab {
+  static constexpr uint32_t NUM_ELEMENTS_PER_SLAB = 30u;
+  KeyT Keys[NUM_ELEMENTS_PER_SLAB];
+  uint32_t ValuesPtrIndex[1];
+  uint32_t NextPtrIndex[1];
+};
+
+template <typename KeyT, typename ValueT>
+struct __align__(32) PhaseConcurrentValueSlab {
+  ValueT Values[PhaseConcurrentKeySlab::NUM_ELEMENTS_PER_SLAB];
+  uint32_t _1 [1];
+  uint32_t _2 [1];
 };
 
 /*
@@ -113,9 +132,27 @@ class ConcurrentSetT {
 template <typename KeyT, typename ValueT>
 class PhaseConcurrentMapT {
  public:
-  using SlabTypeT = phase_concurrent_slab<KeyT, ValueT>;
+  /* Fixed parameters for the data structure */
+
+  static constexpr uint32_t A_INDEX_POINTER     = 0xFFFFFFFE;
+  static constexpr uint32_t EMPTY_INDEX_POINTER = 0xFFFFFFFF;
+
+  static constexpr uint32_t BASE_UNIT_SIZE  = 32;
+  static constexpr uint32_t MUTEX_PTR_LANE  = 29;
+  static constexpr uint32_t VALUES_PTR_LANE = 30;
+  static constexpr uint32_t NEXT_PTR_LANE   = 31;
+
+  static constexpr uint32_t REGULAR_NODE_DATA_MASK    = 0x1FFFFFFF;
+  static constexpr uint32_t REGULAR_NODE_KEY_MASK     = 0x20000000;
+  static constexpr uint32_t REGULAR_NODE_MUTEX_MASK   = 0x40000000;
+  static constexpr uint32_t REGULAR_NODE_ADDRESS_MASK = 0x80000000;
+
+  using KeySlabTypeT    = PhaseConcurrentKeySlab<KeyT, ValueT>;
+  using ValueSlabTypeT  = PhaseConcurrentValueSlab<KeyT, ValueT>;
+  using SlabTypeT       = KeySlabTypeT; 
+
   static std::string getTypeName() { return std::string("PhaseConcurrentMap"); }
-};
+}; 
 
 // the main class to be specialized for different types of hash tables
 template <typename KeyT, typename ValueT, SlabHashTypeT SlabHashT>
@@ -133,12 +170,34 @@ constexpr uint32_t num_replicas = 1;
 }  // namespace slab_alloc_par
 
 using DynamicAllocatorT = SlabAllocLight<slab_alloc_par::log_num_mem_blocks,
-                                         slab_alloc_par::num_super_blocks,
-                                         slab_alloc_par::num_replicas>;
+                                    slab_alloc_par::num_super_blocks,
+                                    slab_alloc_par::num_replicas>;
 
 using AllocatorContextT = SlabAllocLightContext<slab_alloc_par::log_num_mem_blocks,
-                                                slab_alloc_par::num_super_blocks,
-                                                slab_alloc_par::num_replicas>;
+                                           slab_alloc_par::num_super_blocks,
+                                           slab_alloc_par::num_replicas>;
 
 using SlabAddressT = uint32_t;
 using BucketAddressT = SlabAddressT;
+
+template <typename FilterTy>
+struct FilterCheck
+    : typename std::conditional<
+          std::is_same<decltype(FilterTy(std::declval<uint32_t>())), bool>::value,
+          std::true_type,
+          std::false_type>::type {};
+
+template <typename MapTy>
+struct MapCheck
+    : typename std::conditional<
+          std::is_same<decltype(MapTy(std::declval<uint32_t>())), uint32_t>::value,
+          std::true_type,
+          std::false_type>::type {};
+
+struct AlwaysTrueFilter {
+  __device__ bool operator()(uint32_t) { return true; }
+};
+
+struct IdentityMap {
+  __device__ uint32_t operator()(uint32_t V) { return V; }
+};
