@@ -74,15 +74,20 @@ struct __align__(32) phase_concurrent_slab {
 
 template <typename KeyT, typename ValueT>
 struct __align__(32) PhaseConcurrentKeySlab {
-  static constexpr uint32_t NUM_ELEMENTS_PER_SLAB = 30u;
+  static constexpr uint32_t NUM_ELEMENTS_PER_SLAB = 29u;
   KeyT Keys[NUM_ELEMENTS_PER_SLAB];
+  uint32_t MutexPtrIndex[1];
   uint32_t ValuesPtrIndex[1];
   uint32_t NextPtrIndex[1];
 };
 
 template <typename KeyT, typename ValueT>
+using PhaseConcurrentSlab = PhaseConcurrentKeySlab<KeyT, ValueT>;
+
+template <typename KeyT, typename ValueT>
 struct __align__(32) PhaseConcurrentValueSlab {
   ValueT Values[PhaseConcurrentKeySlab::NUM_ELEMENTS_PER_SLAB];
+  uint32_t _0 [1];
   uint32_t _1 [1];
   uint32_t _2 [1];
 };
@@ -142,8 +147,8 @@ class PhaseConcurrentMapT {
   static constexpr uint32_t VALUES_PTR_LANE = 30;
   static constexpr uint32_t NEXT_PTR_LANE   = 31;
 
-  static constexpr uint32_t REGULAR_NODE_DATA_MASK    = 0x1FFFFFFF;
-  static constexpr uint32_t REGULAR_NODE_KEY_MASK     = 0x20000000;
+  static constexpr uint32_t REGULAR_NODE_KEY_MASK     = 0x1FFFFFFF;
+  static constexpr uint32_t REGULAR_NODE_DATA_MASK    = 0x20000000;
   static constexpr uint32_t REGULAR_NODE_MUTEX_MASK   = 0x40000000;
   static constexpr uint32_t REGULAR_NODE_ADDRESS_MASK = 0x80000000;
 
@@ -183,21 +188,40 @@ using BucketAddressT = SlabAddressT;
 template <typename FilterTy>
 struct FilterCheck
     : typename std::conditional<
-          std::is_same<decltype(FilterTy(std::declval<uint32_t>())), bool>::value,
+          std::is_same<decltype(std::declval<FilterTy>()(std::declval<uint32_t>())),
+                       bool>::value,
           std::true_type,
           std::false_type>::type {};
 
 template <typename MapTy>
-struct MapCheck
-    : typename std::conditional<
-          std::is_same<decltype(MapTy(std::declval<uint32_t>())), uint32_t>::value,
-          std::true_type,
-          std::false_type>::type {};
+struct MapCheck : typename std::conditional<
+                      std::is_same<decltype(std::declval<MapTy>(std::declval<uint32_t>())(
+                                       std::declval<uint32_t>())),
+                                   uint32_t>::value,
+                      std::true_type,
+                      std::false_type>::type {};
 
 struct AlwaysTrueFilter {
+  __device__ __host__ AlwaysTrueFilter() = default;
+  __device__ __host__ AlwaysTrueFilter(const AlwaysTrueFilter&) = default;
+
   __device__ bool operator()(uint32_t) { return true; }
 };
 
 struct IdentityMap {
-  __device__ uint32_t operator()(uint32_t V) { return V; }
+  __device__ __host__ IdentityMap(uint32_t Current) : CurrentValue{Current} {}
+  __device__ __host__ IdentityMap(const IdentityMap&) = default;
+
+  __device__ uint32_t operator()(uint32_t NewFieldVal) { return CurrentValue; }
+
+ private:
+  uint32_t CurrentValue;
+};
+
+enum OperationKind {
+  OK_INSERT = 1,
+  OK_SEARCH,
+  OK_DELETE,
+  OK_UPDATE,
+  OK_UPSERT,
 };
