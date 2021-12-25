@@ -14,8 +14,233 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef PCMAP_CLASS_CUH_
+#define PCMAP_CLASS_CUH_
 
 #include <cassert>
 
+/* This is the main class that will be shallowly copied into the device to be
+ * used at runtime. This class does not own the allocated memory on the GPU
+ */
 
+template <typename KeyT, typename ValueT>
+class GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> {
+public:
+  static constexpr uint32_t PrimeDivisor = 4294967291u;
+  static constexpr uint32_t WarpWidth    = 32;
+
+  __host__ __device__ GpuSlabHashContext() = default;
+
+  __host__ __device__ GpuSlabHashContext(
+      const GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>&
+          TheContext) : NumberOfBuckets {TheContext.NumberOfBuckets}, HashX {TheContext.HashX}, HashY {TheContext.HashY}, BucketHeadSlabs {TheContext.BucketHeadSlabs}, TheAllocatorContext {TheContext.TheAllocatorContext} {}
+
+  __host__ __device__ ~GpuSlabHashContext() = default;
+
+  static constexpr size_t getSlabUnitSize() {
+    return sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT);
+  }
+
+  static constexpr size_t getKeySlabUnitSize() {
+    return sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::KeySlabTypeT);
+  }
+
+  static constexpr size_t getValueSlabUnitSize() {
+    return sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::ValueSlabTypeT);
+  }
+
+  static std::string getSlabHashTypeName() {
+    return PhaseConcurrentMapT<KeyT, ValueT>::getTypeName();
+  }
+
+  __host__ void initParameters(const uint32_t NumBuckets, uint32_t HashX, uint32_t HashY, int8_t* DeviceHeadSlabs, AllocatorContextT *TheAllocatorContext) {
+    this->NumberOfBuckets = NumBuckets;
+    this->HashX = HashX;
+    this->HashY = HashY;
+    this->BucketHeadSlabs = reinterpret_cast<typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT*>(DeviceHeadSlabs);
+    this->TheAllocatorContext = *TheAllocatorContext;
+  }
+
+  __device__ __host__ __forceinline__ AllocatorContextT& getAllocatorContext() {
+    return TheAllocatorContext;
+  }
+
+  __device__ __host__ __forceinline__ typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT *
+    getDeviceTablePointer() {
+      return BucketHeadSlabs;
+    }
+
+  __device__ __host__ __forceinline__ uint32_t getNumBuckets() { return NumberOfBuckets; }
+  __device__ __host__ __forceinline__ uint32_t getHashX() { return HashX; }
+  __device__ __host__ __forceinline__ uint32_t getHashY() { return HashY; }
+
+  __device__ __host__ __forceinline__ uint32_t computeBucket(const KeyT& TheKey) const {
+    return (((HashX ^ TheKey) + HashY) % PrimeDivisor) % NumberOfBuckets;
+  }
+
+  __device__ __forceinline__ void insertPair(bool& ToBeInserted,
+                                             const uint32_t& LaneID,
+                                             const Keyt& TheKey,
+                                             const ValueT& TheValue,
+                                             const uint32_t BucketID,
+                                             AllocatorContextT& TheAllocatorContext);
+
+  __device__ __forceinline__ void insertPairUnique(
+      bool& ToBeInserted,
+      const uint32_t& LaneID,
+      const KeyT& TheKey,
+      const ValueT& TheValue,
+      const uint32_t BucketID,
+      AllocatorContextT& TheAllocatorContext);
+
+  template <typename FilterTy, typename MapTy>
+  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
+                                                     MapCheck<MapTy>::value>::type
+  updatePair(bool& ToBeUpdated,
+             const uint32_t& LaneID,
+             const KeyT& TheKey,
+             const Value& TheValue,
+             const uint32_t BucketID,
+             AllocatorContextT& TheAllocatorContext);
+
+  template <typename FilterTy, typename MapTy>
+  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
+                                                     MapCheck<MapTy>::value>::type
+  upsertPair(bool& ToBeUpserted,
+             const uint32_t& LaneID,
+             const KeyT& TheKey,
+             const Value& TheValue,
+             const uint32_t BucketID,
+             AllocatorContextT& TheAllocatorContext);
+
+  __device__ __forceinline__ void searchKey(bool& ToBeSearched,
+                                            const uint32_t& LaneID,
+                                            const KeyT& TheKey,
+                                            ValueT& TheValue,
+                                            const uint32_t BucketID);
+
+  __device__ __forceinline__ void searchKeyBulk(const uint32_t& LaneID,
+                                                const KeyT& TheKey,
+                                                ValueT& TheValue,
+                                                const uint32_t BucketID);
+
+  __device__ __forceinline__ void countKey(bool& ToBeSearched,
+                                           const uint32_t& LaneID,
+                                           const KeyT& TheKey,
+                                           uint32_t& TheCount,
+                                           const uint32_t BucketID);
+
+  __device__ __forceinline__ void deleteKey(bool& ToBeDeleted,
+                                            const uint32_t& LaneID,
+                                            const KeyT& TheKey,
+                                            const uint32_t BucketID);
+
+  /* TODO: Expand */
+  __device__ __forceinline__ uint32_t* getPointerFromSlab(
+      const SlabAddressT& TheSlabAddress,
+      uint32_t LaneID) {
+    return TheAllocatorContext.getPointerFromSlab(TheSlabAddress, LaneID);
+  }
+
+  /* TODO: Expand */
+  __device__ __forceinline__ uint32_t* getPointerFromBucket(const uint32_t BucketID,
+                                                            const uint32_t LaneID) {
+    return reinterpret_cast<uint32_t *>(&BucketHeadSlabs[BucketID]) + LaneID;
+  }
+
+ private:
+  uint32_t NumberOfBuckets;
+  uint32_t HashX;
+  uint32_t HashY;
+
+  typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT *BucketHeadSlabs;
+
+  AllocatorContextT TheAllocatorContext;
+
+ private:
+  __device__ __forceinline__ SlabAllocAddressT allocateSlab(const uint32_t& LaneID) {
+    return TheAllocatorContext.warpAllocate(LaneID);
+  }
+
+  __device__ __forceinline__ SlabAllocAddressT
+  allocateSlab(AllocatorContextT& TheAllocator, const uint32_t& LaneID) {
+    return TheAllocator.warpAllocate(LaneID);    
+  }
+
+  __device__ __forceinline__ void freeSlab(const SlabAllocAddressT SlabPtr) {
+    TheAllocatorContext.freeUntouched(SlabPtr);
+  }
+};
+
+template<typename KeyT, typename ValueT>
+class GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> {
+public:
+  std::string to_string();
+  double computeLoadFactor(int Flag);
+
+  void buildBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys);
+  void buildBulkWithUniqueKeys(KeyT* KeysDevPtr,
+                              ValueT* ValuesDevPtr,
+                              uint32_t NumberOfKeys);
+
+  void searchIndividual(KeyT* KeyQueriesDevPtr,
+                       ValueT* ResultsDevPtr,
+                       uint32_t NumberOfQueries);
+  void searchBulk(KeyT* KeyQueriesDevPtr, ValueT* ResultsDevPtr, uint32_t NumberOfQueries);
+
+  template <typename FilterTy, typename MapTy>
+  void updateBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys);
+
+  template <typename FilterTy, typename MapTy>
+  void upsertBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys);
+
+  void deleteIndividual(KeyT* KeysDevPtr, uint32_t NumberOfKeys);
+
+  void batchedOperation(KeyT* KeysDevPtr,
+                       ValueT* ResultsDevPtr,
+                       uint32_t NumberOfOperations);
+
+  void countIndividual(KeyT* KeyQueriesDevPtr,
+                      uint32_t* CountDevPtr,
+                      uint32_t NumberOfQueries);
+
+private:
+  static constexpr uint32_t PrimeDivisor  = 4294967291u;
+  static constexpr uint32_t BlockSize     = 128;
+  static constexpr uint32_t WarpWidth     = 32;
+
+  uint32_t NumberOfBuckets;
+
+  GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> GpuContext;
+  DynamicAllocatorT* TheAllocator;
+  uint32_t DeviceIndex;
+  uint8_t *BucketHeadSlabs;
+
+  struct {
+    uint32_t HashX;
+    uint32_t HashY;
+  } HashFunctionParameters;
+
+ public:
+  GpuSlabHash(const uint32_t NumberOfBuckets, DynamicAllocatorT *TheAllocator, uint32_t DeviceIndex, const time_t Seed = 0, const bool IdentityHash = false) : NumberOfBuckets (NumberOfBuckets), TheAllocator(TheAllocator), DeviceIndex(DeviceIndex) {
+    size_t SlabSize = sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT);
+    assert(TheAllocator && "The allocator is NULL");
+    assert(slabSize == (WarpWidth * sizeof(uint32_t)) && "Size of slab on PhaseConcurrentMap should be 128 bytes");
+
+    int DeviceCount = 0;
+    size_t SlabSize = sizefof
+    CUDA_CHECK_ERROR(cudaGetDeviceCount(&DeviceCount));
+    assert(DeviceIndex < DeviceCount);
+
+    CUDA_CHECK_ERROR(cudaSetDevice(DeviceIndex));
+
+    /* TODO: Finish Implementation: 
+     * - Allocate head slabs
+     * - Allocate value slabs and mutex slabs for head slabs.
+     */
+
+    __builtin_unreachable();
+  }
+};
+
+#endif // PCMAP_CLASS_CUH_
