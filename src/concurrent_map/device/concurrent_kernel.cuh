@@ -16,8 +16,8 @@
 
 #pragma once
 
-template <typename KeyT, typename ValueT>
-__global__ void batched_operations(
+template <typename KeyT, typename ValueT, typename FilterT = AlwaysTrueFilter, typename MapT = IdentityMap>
+__global__ typename std::enable_if<MapCheck<MapT>::value && FilterCheck<FilterT>::value>::type batched_operations(
     uint32_t* d_operations,
     uint32_t* d_results,
     uint32_t num_operations,
@@ -46,14 +46,22 @@ __global__ void batched_operations(
     myValue = myKey;  // for the sake of this benchmark
   }
 
-  bool to_insert = (myOperation == 1) ? true : false;
-  bool to_delete = (myOperation == 2) ? true : false;
-  bool to_search = (myOperation == 3) ? true : false;
+  bool to_insert = (myOperation == OK_INSERT) ? true : false;
+  bool to_delete = (myOperation == OK_DELETE) ? true : false;
+  bool to_search = (myOperation == OK_SEARCH) ? true : false;
+  bool to_update = (myOperation == OK_UPDATE) ? true : false;
+  bool to_upsert = (myOperation == OK_UPSERT) ? true : false;
 
   // first insertions:
   slab_hash.insertPair(to_insert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
 
-  // second deletions:
+  // second updates:
+  slab_hash.updatePair<FilterT, MapT>(to_update, laneId, myKey, myValue, myBucket, local_allocator_ctx);
+  
+  // third upserts
+  slab_hash.upsertPair<FilterT, MapT>(to_upsert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
+
+  // fourth deletions:
   slab_hash.deleteKey(to_delete, laneId, myKey, myBucket);
 
   // finally search queries:
