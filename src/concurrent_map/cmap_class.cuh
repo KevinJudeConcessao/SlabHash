@@ -16,6 +16,7 @@
 
 #pragma once
 #include <cassert>
+#include <type_traits>
 
 /*
  * This is the main class that will be shallowly copied into the device to be
@@ -102,6 +103,31 @@ class GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
       const ValueT& myValue,
       const uint32_t bucket_id,
       AllocatorContextT& local_allocator_context);
+
+  // threads in a warp cooperate with each other to update the value of a key into the
+  // slab hash
+  template <typename FilterTy, typename MapTy>
+  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
+                                                     MapCheck<MapTy>::value>::type
+  updatePair(bool& to_be_updated,
+             const uint32_t& laneId,
+             const KeyT& myKey,
+             const ValueT& myValue,
+             const uint32_t bucket_id,
+             AllocatorContextT& local_allocator_context);
+
+  // threads in a warp cooperate with each other to insert a new key-value pair into
+  // the slab hash; if the key is found, the value is updated to with a new value
+
+  template <typename FilterTy, typename MapTy>
+  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
+                                                     MapCheck<MapTy>::value>::type
+  upsertPair(bool& to_be_upserted,
+             const uint32_t& laneId,
+             const KeyT& myKey,
+             const ValueT& myValue,
+             const uint32_t bucket_id,
+             AllocatorContextT& local_allocator_context);
 
   // threads in a warp cooperate with each other to search for keys
   // if found, it returns the corresponding value, else SEARCH_NOT_FOUND
@@ -261,9 +287,18 @@ class GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
 
   void buildBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
   void buildBulkWithUniqueKeys(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
+
+  template <typename FilterTy, typename MapTy>
+  void updateBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
+
+  template <typename FilterTy, typename MapTy>
+  void upsertBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
+
   void searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_queries);
   void searchBulk(KeyT* d_query, ValueT* d_result, uint32_t num_queries);
+
   void deleteIndividual(KeyT* d_key, uint32_t num_keys);
   void batchedOperation(KeyT* d_key, ValueT* d_result, uint32_t num_ops);
+
   void countIndividual(KeyT* d_query, uint32_t* d_count, uint32_t num_queries);
 };

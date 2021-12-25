@@ -163,3 +163,21 @@ double GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::computeLoadFacto
 
   return load_factor;
 }
+
+template <typename FilterTy, typename MapTy>
+template <typename KeyT, typename ValueT>
+void GpuSlabHash<KeyT, ValueT, SlabHashT::ConcurrentMap>::updateBulk(KeyT* TheKeys, ValueT* TheValues, uint32_t NumberOfKeys) {
+  uint32_t NumberOfBlocks = (NumberOfKeys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+
+  CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
+  update_keys<KeyT, ValueT, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(TheKeys, TheValues, NumberOfKeys, gpu_context_);
+}
+
+template <typename FilterTy, typename MapTy>
+template <typename KeyT, typename ValueT>
+void GpuSlabHash<KeyT, ValueT, SlabHashT::ConcurrentMap>::upsertBulk(KeyT* TheKeys, ValueT* TheValues, uint32_t NumberOfKeys) {
+  uint32_t NumberOfBlocks = (NumberOfKeys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+
+  CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
+  upsert_keys<KeyT, ValueT, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(TheKeys, TheValues, NumberOfKeys, gpu_context_);
+}
