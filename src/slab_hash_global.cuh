@@ -32,14 +32,11 @@
 // internal parameters for slab hash device functions:
 static constexpr uint32_t EMPTY_KEY = 0xFFFFFFFF;
 static constexpr uint32_t EMPTY_VALUE = 0xFFFFFFFF;
-<<<<<<< HEAD
 static constexpr uint32_t TOMBSTONE_KEY = 0xFFFFFFFE;
 static constexpr uint32_t TOMBSTONE_VALUE = 0xFFFFFFFE;
 static constexpr uint64_t TOMBSTONE_PAIR_64 = 0xFFFFFFFEFFFFFFFELL;
-=======
 static constexpr uint32_t DELETED_KEY = 0xFFFFFFFE;
-static constexpr uint32_t DELETED_VALUE = 0xFFFFFFFE
->>>>>>> b3a1f3dc792a4bccb38693a2dec16ca3abcf154e
+static constexpr uint32_t DELETED_VALUE = 0xFFFFFFFE;
 static constexpr uint64_t EMPTY_PAIR_64 = 0xFFFFFFFFFFFFFFFFLL;
 static constexpr uint32_t WARP_WIDTH = 32;
 static constexpr uint32_t SEARCH_NOT_FOUND = 0xFFFFFFFF;
