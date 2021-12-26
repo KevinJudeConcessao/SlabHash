@@ -62,7 +62,7 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::deleteKey(
           to_be_deleted = false;
       } else {
         next = next_ptr;
-      }
+      }:
     } else {  // The wanted key found:
       int dest_lane = __ffs(isFound & SlabHashT::REGULAR_NODE_KEY_MASK) - 1;
       if (laneId == src_lane) {
@@ -70,7 +70,7 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::deleteKey(
                           ? getPointerFromBucket(src_bucket, dest_lane)
                           : getPointerFromSlab(next, dest_lane);
 
-        uint64_t old_pair = atomicExch((unsigned long long int*)p, EMPTY_PAIR_64);
+        uint64_t old_pair = atomicExch((unsigned long long int*)p, TOMBSTONE_PAIR_64);
         uint32_t deleted_key = static_cast<uint32_t>(old_pair);
         successful_deletion = deleted_key == src_key;
         to_be_deleted = false;

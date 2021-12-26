@@ -63,8 +63,8 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::deleteKey(
         if (atomicCAS(MutexPtr, EMPTY_KEY, 0) == EMPTY_KEY) {
           uint32_t Key = *Data;
           if (Key == *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&ReqKey))) {
-            *Data = EMPTY_KEY;
-            *Value = EMPTY_KEY;
+            *Data = TOMBSTONE_KEY;
+            *Value = TOMBSTONE_VALUE;
             DeletionStatus = true;
             ToBeDeleted = false;
           }
