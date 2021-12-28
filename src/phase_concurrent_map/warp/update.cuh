@@ -113,7 +113,7 @@ __device__ __forceinline__
   uint32_t CurrentSlabPtr = SlabHashT::A_INDEX_POINTER;
   bool IsHeadSlab = true;
 
-  while (WorkQueue = __ballot_sync(0xFFFFFFFF, ToBeUpserted) != 0) {
+  while ((WorkQueue = __ballot_sync(0xFFFFFFFF, ToBeUpserted)) != 0) {
     CurrentSlabPtr = IsHeadSlab ? SlabHashT::A_INDEX_POINTER : CurrentSlabPtr;
 
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
@@ -132,7 +132,7 @@ __device__ __forceinline__
     int FoundLane = __ffs(__ballot_sync(0xFFFFFFFF, Data == ReqKey) &
                           SlabHashT::REGULAR_NODE_KEY_MASK) -
                     1;
-    int EmptyLanes =
+    uint32_t EmptyLanes =
         __ballot_sync(0xFFFFFFFF, Data == EMPTY_KEY) & SlabHashT::REGULAR_NODE_KEY_MASK;
 
     if (FoundLane < 0) {
