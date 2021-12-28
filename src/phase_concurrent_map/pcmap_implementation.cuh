@@ -29,7 +29,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  build_table_kernel<KeyT, ValueT><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  build_table_kernel<KeyT, ValueT, AllocPolicy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
@@ -41,8 +41,9 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  build_table_with_unique_keys_kernel<KeyT, ValueT><<<NumberOfBlocks, BLOCKSIZE_>>>(
-      KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
+  build_table_with_unique_keys_kernel<KeyT, ValueT, AllocPolicy>
+      <<<NumberOfBlocks, BLOCKSIZE_>>>(
+          KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
 template <typename KeyT, typename ValueT, typename AllocPolicy>
@@ -51,7 +52,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  search_table<KeyT, ValueT><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  search_table<KeyT, ValueT, AllocPolicy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
@@ -61,7 +62,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  search_table_bulk<KeyT, ValueT><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  search_table_bulk<KeyT, ValueT, AllocPolicy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
@@ -71,7 +72,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  delete_table_keys<KeyT, ValueT>
+  delete_table_keys<KeyT, ValueT, AllocPolicy>
       <<<NumberOfBlocks, BLOCKSIZE_>>>(KeysDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
@@ -93,7 +94,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  count_key<KeyT, ValueT><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  count_key<KeyT, ValueT, AllocPolicy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       KeysDevPtr, CountDevPtr, NumberOfQueries, SlabHashCtxt);
 }
 
@@ -104,7 +105,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  update_keys<KeyT, ValueT><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  update_keys<KeyT, ValueT, AllocPolicy, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
@@ -115,7 +116,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  upsert_keys<KeyT, ValueT><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  upsert_keys<KeyT, ValueT, AllocPolicy, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
@@ -156,7 +157,7 @@ double GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
 
   uint32_t NumberOfThreadBlocks =
       (NumberOfBuckets * WarpWidth + BlockSize - 1) / BlockSize;
-  bucket_count_kernel<KeyT, ValueT><<<NumberOfThreadBlocks, BlockSize>>>(
+  bucket_count_kernel<KeyT, ValueT, AllocPolicy><<<NumberOfThreadBlocks, BlockSize>>>(
       SlabHashCtxt, BucketKeyCountDev.get(), BucketSlabCountDev.get(), NumberOfBuckets);
 
   CHECK_ERROR(cudaMemcpy(BucketKeyCount.get(),
