@@ -19,9 +19,9 @@
 //================================================
 // Individual Count Unit:
 //================================================
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::countKey(
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::countKey(
     bool& to_be_searched,
     const uint32_t& laneId,
     const KeyT& myKey,
@@ -33,8 +33,7 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::countKey(
   uint32_t next = SlabHashT::A_INDEX_POINTER;
 
   while ((work_queue = __ballot_sync(0xFFFFFFFF, to_be_searched))) {
-    next = (last_work_queue != work_queue) ? SlabHashT::A_INDEX_POINTER
-                                           : next;
+    next = (last_work_queue != work_queue) ? SlabHashT::A_INDEX_POINTER : next;
     uint32_t src_lane = __ffs(work_queue) - 1;
     uint32_t src_bucket = __shfl_sync(0xFFFFFFFF, bucket_id, src_lane, 32);
     uint32_t wanted_key = __shfl_sync(0xFFFFFFFF,
@@ -45,23 +44,22 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::countKey(
     const uint32_t src_unit_data = (next == SlabHashT::A_INDEX_POINTER)
                                        ? *(getPointerFromBucket(src_bucket, laneId))
                                        : *(getPointerFromSlab(next, laneId));
-    const int wanted_key_count = __popc(__ballot_sync(0xFFFFFFFF, src_unit_data == wanted_key) &
-                           SlabHashT::REGULAR_NODE_KEY_MASK);
-    
-    if(laneId == src_lane) //count
+    const int wanted_key_count =
+        __popc(__ballot_sync(0xFFFFFFFF, src_unit_data == wanted_key) &
+               SlabHashT::REGULAR_NODE_KEY_MASK);
+
+    if (laneId == src_lane)  // count
       myCount += wanted_key_count;
 
-    uint32_t next_ptr = __shfl_sync(0xFFFFFFFF, src_unit_data, 31, 32); //iterate
-    if (next_ptr == SlabHashT::EMPTY_INDEX_POINTER){
-      if(laneId == src_lane){
+    uint32_t next_ptr = __shfl_sync(0xFFFFFFFF, src_unit_data, 31, 32);  // iterate
+    if (next_ptr == SlabHashT::EMPTY_INDEX_POINTER) {
+      if (laneId == src_lane) {
         to_be_searched = false;
       }
-    }
-    else{
+    } else {
       next = next_ptr;
     }
 
     last_work_queue = work_queue;
   }
 }
-

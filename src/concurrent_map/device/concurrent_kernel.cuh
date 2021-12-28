@@ -16,12 +16,19 @@
 
 #pragma once
 
-template <typename KeyT, typename ValueT, typename FilterT = AlwaysTrueFilter, typename MapT = IdentityMap>
-__global__ typename std::enable_if<MapCheck<MapT>::value && FilterCheck<FilterT>::value>::type batched_operations(
-    uint32_t* d_operations,
-    uint32_t* d_results,
-    uint32_t num_operations,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> slab_hash) {
+template <typename KeyT,
+          typename ValueT,
+          typename AllocPolicy,
+          typename FilterT = AlwaysTrueFilter,
+          typename MapT = IdentityMap>
+__global__
+    typename std::enable_if<MapCheck<MapT>::value && FilterCheck<FilterT>::value>::type
+    batched_operations(
+        uint32_t* d_operations,
+        uint32_t* d_results,
+        uint32_t num_operations,
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>
+            slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 
@@ -29,7 +36,8 @@ __global__ typename std::enable_if<MapCheck<MapT>::value && FilterCheck<FilterT>
     return;
 
   // initializing the memory allocator on each warp:
-  AllocatorContextT local_allocator_ctx(slab_hash.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT local_allocator_ctx(
+      slab_hash.getAllocatorContext());
   local_allocator_ctx.initAllocator(tid, laneId);
 
   uint32_t myOperation = 0;
@@ -56,10 +64,12 @@ __global__ typename std::enable_if<MapCheck<MapT>::value && FilterCheck<FilterT>
   slab_hash.insertPair(to_insert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
 
   // second updates:
-  slab_hash.updatePair<FilterT, MapT>(to_update, laneId, myKey, myValue, myBucket, local_allocator_ctx);
-  
+  slab_hash.updatePair<FilterT, MapT>(
+      to_update, laneId, myKey, myValue, myBucket, local_allocator_ctx);
+
   // third upserts
-  slab_hash.upsertPair<FilterT, MapT>(to_upsert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
+  slab_hash.upsertPair<FilterT, MapT>(
+      to_upsert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
 
   // fourth deletions:
   slab_hash.deleteKey(to_delete, laneId, myKey, myBucket);

@@ -16,9 +16,9 @@
 
 #pragma once
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ bool
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::deleteKey(
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::deleteKey(
     bool& to_be_deleted,
     const uint32_t& laneId,
     const KeyT& myKey,

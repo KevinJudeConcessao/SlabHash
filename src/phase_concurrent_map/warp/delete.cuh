@@ -17,13 +17,13 @@
 #ifndef PCMAP_HASH_CTXT_DELETE_H_
 #define PCMAP_HASH_CTXT_DELETE_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ bool
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::deleteKey(
-    bool& ToBeDeleted,
-    const uint32_t LaneID,
-    const KeyT& TheKey,
-    const uint32_t BucketID) {
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    deleteKey(bool& ToBeDeleted,
+              const uint32_t LaneID,
+              const KeyT& TheKey,
+              const uint32_t BucketID) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;

@@ -18,16 +18,16 @@
 #define PCMAP_HASH_CTXT_UPDATE_H_
 
 template <typename FilterTy, typename MapTy>
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__
     typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::updatePair(
-        bool& ToBeUpdated,
-        const uint32_t& LaneID,
-        const KeyT& TheKey,
-        const ValueT& TheValue,
-        const uint32_t BucketID,
-        AllocatorContext& TheAllocatorContext) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+        updatePair(bool& ToBeUpdated,
+                   const uint32_t& LaneID,
+                   const KeyT& TheKey,
+                   const ValueT& TheValue,
+                   const uint32_t BucketID,
+                   AllocatorContext& TheAllocatorContext) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -97,16 +97,16 @@ __device__ __forceinline__
 }
 
 template <typename FilterTy, typename MapTy>
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__
     typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::upsertPair(
-        bool& ToBeUpserted,
-        const uint32_t& LaneID,
-        const KeyT& TheKey,
-        const ValueT& TheValue,
-        const uint32_t BucketID,
-        AllocatorContext& TheAllocatorContext) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+        upsertPair(bool& ToBeUpserted,
+                   const uint32_t& LaneID,
+                   const KeyT& TheKey,
+                   const ValueT& TheValue,
+                   const uint32_t BucketID,
+                   AllocatorContext& TheAllocatorContext) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;

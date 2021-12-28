@@ -17,16 +17,16 @@
 #pragma once
 
 template <typename FilterTy, typename MapTy>
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__
     typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::updatePair(
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::updatePair(
         bool& ToBeUpdated,
         const uint32_t& LaneID,
         const KeyT& TheKey,
         const ValueT& TheValue,
         const uint32_t BucketID,
-        AllocatorContextT& LocalAllocatorCtxt) {
+        typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -89,16 +89,16 @@ __device__ __forceinline__
 }
 
 template <typename FilterTy, typename MapTy>
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__
     typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::upsertPair(
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upsertPair(
         bool& ToBeUpserted,
         const uint32_t& LaneID,
         const KeyT& TheKey,
         const ValueT& TheValue,
         const uint32_t BucketID,
-        AllocatorContextT& LocalAllocatorCtxt) {
+        typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;

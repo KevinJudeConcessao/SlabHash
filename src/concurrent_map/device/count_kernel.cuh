@@ -16,12 +16,13 @@
 
 #pragma once
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void count_key(
     KeyT* d_queries,
     uint32_t* d_counts,
     uint32_t num_queries,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> slab_hash) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>
+        slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 

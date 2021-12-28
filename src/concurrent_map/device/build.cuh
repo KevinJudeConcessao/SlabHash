@@ -18,12 +18,13 @@
 /*
  *
  */
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void build_table_kernel(
     KeyT* d_key,
     ValueT* d_value,
     uint32_t num_keys,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> slab_hash) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>
+        slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 
@@ -31,7 +32,8 @@ __global__ void build_table_kernel(
     return;
   }
 
-  AllocatorContextT local_allocator_ctx(slab_hash.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT local_allocator_ctx(
+      slab_hash.getAllocatorContext());
   local_allocator_ctx.initAllocator(tid, laneId);
 
   KeyT myKey = 0;
@@ -49,12 +51,13 @@ __global__ void build_table_kernel(
   slab_hash.insertPair(to_insert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
 }
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void build_table_with_unique_keys_kernel(
     KeyT* d_key,
     ValueT* d_value,
     uint32_t num_keys,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> slab_hash) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>
+        slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 
@@ -62,7 +65,8 @@ __global__ void build_table_with_unique_keys_kernel(
     return;
   }
 
-  AllocatorContextT local_allocator_ctx(slab_hash.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT local_allocator_ctx(
+      slab_hash.getAllocatorContext());
   local_allocator_ctx.initAllocator(tid, laneId);
 
   KeyT myKey = 0;

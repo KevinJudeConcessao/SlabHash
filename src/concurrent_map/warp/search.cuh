@@ -19,9 +19,9 @@
 //================================================
 // Individual Search Unit:
 //================================================
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::searchKey(
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::searchKey(
     bool& to_be_searched,
     const uint32_t& laneId,
     const KeyT& myKey,
@@ -73,13 +73,13 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::searchKey(
 //================================================
 // Bulk Search Unit:
 //================================================
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::searchKeyBulk(
-    const uint32_t& laneId,
-    const KeyT& myKey,
-    ValueT& myValue,
-    const uint32_t bucket_id) {
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::
+    searchKeyBulk(const uint32_t& laneId,
+                  const KeyT& myKey,
+                  ValueT& myValue,
+                  const uint32_t bucket_id) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 #pragma unroll
   for (int src_lane = 0; src_lane < WARP_WIDTH; src_lane++) {

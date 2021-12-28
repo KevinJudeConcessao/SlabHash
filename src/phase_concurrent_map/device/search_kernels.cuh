@@ -17,12 +17,13 @@
 #ifndef PCMAP_SEARCH_KERNELS_H_
 #define PCMAP_SEARCH_KERNELS_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void search_table(
     KeyT* TheKeys,
     ValueT* Results,
     uint32_t NumberOfQueries,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> SlabHashCtxt) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+        SlabHashCtxt) {
   uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t LaneID = threadIdx.x & 0x1F;
 
@@ -46,12 +47,13 @@ __global__ void search_table(
     KeyCounts[ThreadID] = TheResult;
 }
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void search_table_bulk(
     KeyT* TheKeys,
     ValueT* Results,
     uint32_t NumberOfQueries,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> SlabHashCtxt) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+        SlabHashCtxt) {
   uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t LaneID = threadIdx.x & 0x1F;
 
@@ -75,4 +77,4 @@ __global__ void search_table_bulk(
     KeyCounts[ThreadID] = TheResult;
 }
 
-#endif // PCMAP_SEARCH_KERNELS_H_
+#endif  // PCMAP_SEARCH_KERNELS_H_

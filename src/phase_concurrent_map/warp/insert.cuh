@@ -17,15 +17,15 @@
 #ifndef PCMAP_HASH_CTXT_INSERT_H_
 #define PCMAP_HASH_CTXT_INSERT_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::insertPair(
-    bool& ToBeInserted,
-    const uint32_t& LaneID,
-    const KeyT& TheKey,
-    const ValueT& TheValue,
-    const uint32_t BucketID,
-    AllocatorContext& TheAllocatorContext) {
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    insertPair(bool& ToBeInserted,
+               const uint32_t& LaneID,
+               const KeyT& TheKey,
+               const ValueT& TheValue,
+               const uint32_t BucketID,
+               AllocatorContext& TheAllocatorContext) {
   using SlabHashT = PhaseConcurrentMap<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -107,15 +107,15 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::insertPair(
   }
 }
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::insertPairUnique(
-    bool& ToBeInserted,
-    const uint32_t& LaneID,
-    const KeyT& TheKey,
-    const ValueT& TheValue,
-    const uint32_t BucketID,
-    AllocatorContext& TheAllocatorContext) {
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    insertPairUnique(bool& ToBeInserted,
+                     const uint32_t& LaneID,
+                     const KeyT& TheKey,
+                     const ValueT& TheValue,
+                     const uint32_t BucketID,
+                     AllocatorContext& TheAllocatorContext) {
   /* TODO: Finish Implementation
    * TODO: Verify correctness
    */

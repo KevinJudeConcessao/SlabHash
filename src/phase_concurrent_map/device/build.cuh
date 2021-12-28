@@ -17,19 +17,21 @@
 #ifndef PCMAP_BUILD_H_
 #define PCMAP_BUILD_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void build_table_kernel(
     KeyT* TheKeys,
     ValueT* TheValues,
     uint32_t NumberOfKeys,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> SlabHashCtxt) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+        SlabHashCtxt) {
   uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t LaneID = threadIdx.x & 0x1F;
 
   if ((ThreadID - LaneID) >= NumberOfKeys)
     return;
 
-  AllocatorContextT TheAllocatorContext(SlabHashCtxt.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT TheAllocatorContext(
+      SlabHashCtxt.getAllocatorContext());
   TheAllocatorContext.initAllocator(ThreadID, LaneID);
 
   KeyT TheKey{};
@@ -48,19 +50,21 @@ __global__ void build_table_kernel(
       ToInsert, LaneID, TheKey, TheValue, TheBucket, TheAllocatorContext);
 }
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void build_table_with_unique_keys_kernel(
     KeyT* TheKeys,
     ValueT* TheValues,
     uint32_t NumberOfKeys,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> SlabHashCtxt) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+        SlabHashCtxt) {
   uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t LaneID = threadIdx.x & 0x1F;
 
   if ((ThreadID - LaneID) >= NumberOfKeys)
     return;
 
-  AllocatorContextT TheAllocatorContext(SlabHashCtxt.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT TheAllocatorContext(
+      SlabHashCtxt.getAllocatorContext());
   TheAllocatorContext.initAllocator(ThreadID, LaneID);
 
   KeyT TheKey{};

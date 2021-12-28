@@ -17,12 +17,13 @@
 #ifndef PCMAP_COUNT_KERNEL_H_
 #define PCMAP_COUNT_KERNEL_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void count_key(
     KeyT* TheKeys,
     uint32_t* KeyCounts,
     uint32_t NumberOfQueries,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> SlabHashCtxt) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+        SlabHashCtxt) {
   uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t LaneID = threadIdx.x & 0x1F;
 
@@ -46,9 +47,10 @@ __global__ void count_key(
     KeyCounts[ThreadID] = TheCount;
 }
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void bucket_count_kernel(
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> SlabHashCtxt,
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+        SlabHashCtxt,
     uint32_t* KeysCount,
     uint32_t* SlabsCount,
     uint32_t NumberOfBuckets) {

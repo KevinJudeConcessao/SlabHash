@@ -17,14 +17,14 @@
 #ifndef PCMAP_HASH_CTXT_SEARCH_H_
 #define PCMAP_HASH_CTXT_SEARCH_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::searchKey(
-    bool& ToBeSearched,
-    const uint32_t& LaneID,
-    const KeyT& TheKey,
-    const ValueT& TheValue,
-    const uint32_t BucketID) {
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    searchKey(bool& ToBeSearched,
+              const uint32_t& LaneID,
+              const KeyT& TheKey,
+              const ValueT& TheValue,
+              const uint32_t BucketID) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -78,14 +78,14 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::searchKey(
   }
 }
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::searchKeyBulk(
-    const uint32_t& LaneID,
-    const KeyT& TheKey,
-    const ValueT& TheValue,
-    const uint32_t BucketID) {
-  /* TODO: Complete implementation */ 
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    searchKeyBulk(const uint32_t& LaneID,
+                  const KeyT& TheKey,
+                  const ValueT& TheValue,
+                  const uint32_t BucketID) {
+  /* TODO: Complete implementation */
   __builtin_unreachable();
 }
 

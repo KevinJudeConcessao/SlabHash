@@ -21,8 +21,8 @@
 #include <functional>
 #include <memory>
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::buildBulk(
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::buildBulk(
     KeyT* KeysDevPtr,
     ValueT* ValuesDevPtr,
     uint32_t NumberOfKeys) {
@@ -33,8 +33,8 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::buildBulk(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
     buildBulkWithUniqueKeys(KeyT* KeysDevPtr,
                             ValueT* ValuesDevPtr,
                             uint32_t NumberOfKeys) {
@@ -45,11 +45,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::searchIndividual(
-    KeyT* KeysDevPtr,
-    ValueT* ValuesDevPtr,
-    uint32_t NumberOfQueries) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    searchIndividual(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfQueries) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
@@ -57,11 +55,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::searchIndivid
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::searchBulk(
-    KeyT* KeysDevPtr,
-    ValueT* ValuesDevPtr,
-    uint32_t NumberOfQueries) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    searchBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfQueries) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
@@ -69,10 +65,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::searchBulk(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::deleteIndividual(
-    KeyT* KeysDevPtr,
-    uint32_t NumberOfKeys) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    deleteIndividual(KeyT* KeysDevPtr, uint32_t NumberOfKeys) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
@@ -80,11 +75,11 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::deleteIndivid
       <<<NumberOfBlocks, BLOCKSIZE_>>>(KeysDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::batchedOperation(
-    KeyT* KeysDevPtr,
-    ValueT* ResultsDevPtr,
-    uint32_t NumberOfOperations) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    batchedOperation(KeyT* KeysDevPtr,
+                     ValueT* ResultsDevPtr,
+                     uint32_t NumberOfOperations) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
@@ -92,11 +87,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::batchedOperat
   __builtin_unreachable();
 }
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::countIndividual(
-    KeyT* KeysDevPtr,
-    uint32_t* CountDevPtr,
-    uint32_t NumberOfQueries) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    countIndividual(KeyT* KeysDevPtr, uint32_t* CountDevPtr, uint32_t NumberOfQueries) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
@@ -105,11 +98,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::countIndividu
 }
 
 template <typename FilterTy, typename MapTy>
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::updateBulk(
-    KeyT* KeysDevPtr,
-    ValueT* ValuesDevPtr,
-    uint32_t NumberOfKeys) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    updateBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
@@ -118,11 +109,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::updateBulk(
 }
 
 template <typename FilterTy, typename MapTy>
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::upsertBulk(
-    KeyT* KeysDevPtr,
-    ValueT* ValuesDevPtr,
-    uint32_t NumberOfKeys) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    upsertBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
@@ -130,8 +119,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::upsertBulk(
       KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
 }
 
-template <typename KeyT, typename ValueT>
-std::string GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::to_string() {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+std::string
+GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::to_string() {
   std::string Result;
 
   /* TODO: Populate stringified fields */
@@ -139,9 +129,9 @@ std::string GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::to_str
   return Result;
 }
 
-template <typename KeyT, typename ValueT>
-double GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::computeLoadFactor(
-    int = 0) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+double GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    computeLoadFactor(int = 0) {
   auto FreeDeviceMem = [](const void* Ptr) -> void { CHECK_ERROR(cudaFree(Ptr)); }
 
   std::unique_ptr<uint32_t>

@@ -17,14 +17,14 @@
 #ifndef PCMAP_HASH_CTXT_COUNT_H_
 #define PCMAP_HASH_CTXT_COUNT_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ void
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::countKey(
-    bool& ToBeSearched,
-    const uint32_t& LaneID,
-    const KeyT& TheKey,
-    uint32_t& TheCount,
-    const uint32_t BucketID) {
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    countKey(bool& ToBeSearched,
+             const uint32_t& LaneID,
+             const KeyT& TheKey,
+             uint32_t& TheCount,
+             const uint32_t BucketID) {
   using SlabHashTypeT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -38,7 +38,7 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>::countKey(
     uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
     uint32_t RequiredKey =
         __shfl_sync(0xFFFFFFFF,
-                    *reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(&TheKey)),
+                    *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey)),
                     SourceLane,
                     32);
     uint32_t Data = (CurrentSlabPtr == A_INDEX_POINTER)

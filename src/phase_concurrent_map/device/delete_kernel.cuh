@@ -17,11 +17,12 @@
 #ifndef PCMAP_DELETE_KERNEL_H_
 #define PCMAP_DELETE_KERNEL_H_
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void delete_table_keys(
     KeyT* TheKeys,
     uint32_t NumberOfKeys,
-    GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> SlabHashCtxt) {
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+        SlabHashCtxt) {
   uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t LaneID = threadIdx.x & 0x1F;
 
@@ -41,4 +42,4 @@ __global__ void delete_table_keys(
   SlabHashCtxt.deleteKey(ToDelete, LaneID, TheKey, TheBucket);
 }
 
-#endif // PCMAP_DELETE_KERNEL_H_
+#endif  // PCMAP_DELETE_KERNEL_H_

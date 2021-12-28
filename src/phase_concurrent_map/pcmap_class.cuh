@@ -23,17 +23,22 @@
  * used at runtime. This class does not own the allocated memory on the GPU
  */
 
-template <typename KeyT, typename ValueT>
-class GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> {
-public:
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> {
+ public:
   static constexpr uint32_t PrimeDivisor = 4294967291u;
-  static constexpr uint32_t WarpWidth    = 32;
+  static constexpr uint32_t WarpWidth = 32;
 
   __host__ __device__ GpuSlabHashContext() = default;
 
   __host__ __device__ GpuSlabHashContext(
-      const GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap>&
-          TheContext) : NumberOfBuckets {TheContext.NumberOfBuckets}, HashX {TheContext.HashX}, HashY {TheContext.HashY}, BucketHeadSlabs {TheContext.BucketHeadSlabs}, TheAllocatorContext {TheContext.TheAllocatorContext} {}
+      const GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>&
+          TheContext)
+      : NumberOfBuckets{TheContext.NumberOfBuckets}
+      , HashX{TheContext.HashX}
+      , HashY{TheContext.HashY}
+      , BucketHeadSlabs{TheContext.BucketHeadSlabs}
+      , TheAllocatorContext{TheContext.TheAllocatorContext} {}
 
   __host__ __device__ ~GpuSlabHashContext() = default;
 
@@ -53,22 +58,31 @@ public:
     return PhaseConcurrentMapT<KeyT, ValueT>::getTypeName();
   }
 
-  __host__ void initParameters(const uint32_t NumBuckets, uint32_t HashX, uint32_t HashY, int8_t* DeviceHeadSlabs, AllocatorContextT *TheAllocatorContext) {
+  __host__ void initParameters(
+      const uint32_t NumBuckets,
+      uint32_t HashX,
+      uint32_t HashY,
+      int8_t* DeviceHeadSlabs,
+      typename AllocPolicy::AllocatorContextT* TheAllocatorContext) {
     this->NumberOfBuckets = NumBuckets;
     this->HashX = HashX;
     this->HashY = HashY;
-    this->BucketHeadSlabs = reinterpret_cast<typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT*>(DeviceHeadSlabs);
+    this->BucketHeadSlabs =
+        reinterpret_cast<typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT*>(
+            DeviceHeadSlabs);
     this->TheAllocatorContext = *TheAllocatorContext;
   }
 
-  __device__ __host__ __forceinline__ AllocatorContextT& getAllocatorContext() {
+  __device__ __host__ __forceinline__ typename AllocPolicy::AllocatorContextT&
+  getAllocatorContext() {
     return TheAllocatorContext;
   }
 
-  __device__ __host__ __forceinline__ typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT *
-    getDeviceTablePointer() {
-      return BucketHeadSlabs;
-    }
+  __device__ __host__ __forceinline__
+      typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT*
+      getDeviceTablePointer() {
+    return BucketHeadSlabs;
+  }
 
   __device__ __host__ __forceinline__ uint32_t getNumBuckets() { return NumberOfBuckets; }
   __device__ __host__ __forceinline__ uint32_t getHashX() { return HashX; }
@@ -78,12 +92,13 @@ public:
     return (((HashX ^ TheKey) + HashY) % PrimeDivisor) % NumberOfBuckets;
   }
 
-  __device__ __forceinline__ void insertPair(bool& ToBeInserted,
-                                             const uint32_t& LaneID,
-                                             const Keyt& TheKey,
-                                             const ValueT& TheValue,
-                                             const uint32_t BucketID,
-                                             AllocatorContextT& TheAllocatorContext);
+  __device__ __forceinline__ void insertPair(
+      bool& ToBeInserted,
+      const uint32_t& LaneID,
+      const Keyt& TheKey,
+      const ValueT& TheValue,
+      const uint32_t BucketID,
+      typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
 
   __device__ __forceinline__ void insertPairUnique(
       bool& ToBeInserted,
@@ -91,7 +106,7 @@ public:
       const KeyT& TheKey,
       const ValueT& TheValue,
       const uint32_t BucketID,
-      AllocatorContextT& TheAllocatorContext);
+      typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
 
   template <typename FilterTy, typename MapTy>
   __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
@@ -101,7 +116,7 @@ public:
              const KeyT& TheKey,
              const Value& TheValue,
              const uint32_t BucketID,
-             AllocatorContextT& TheAllocatorContext);
+             typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
 
   template <typename FilterTy, typename MapTy>
   __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
@@ -111,7 +126,7 @@ public:
              const KeyT& TheKey,
              const Value& TheValue,
              const uint32_t BucketID,
-             AllocatorContextT& TheAllocatorContext);
+             typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
 
   __device__ __forceinline__ void searchKey(bool& ToBeSearched,
                                             const uint32_t& LaneID,
@@ -145,7 +160,7 @@ public:
   /* TODO: Expand */
   __device__ __forceinline__ uint32_t* getPointerFromBucket(const uint32_t BucketID,
                                                             const uint32_t LaneID) {
-    return reinterpret_cast<uint32_t *>(&BucketHeadSlabs[BucketID]) + LaneID;
+    return reinterpret_cast<uint32_t*>(&BucketHeadSlabs[BucketID]) + LaneID;
   }
 
  private:
@@ -153,9 +168,9 @@ public:
   uint32_t HashX;
   uint32_t HashY;
 
-  typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT *BucketHeadSlabs;
+  typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT* BucketHeadSlabs;
 
-  AllocatorContextT TheAllocatorContext;
+  typename AllocPolicy::AllocatorContextT TheAllocatorContext;
 
  private:
   __device__ __forceinline__ SlabAllocAddressT allocateSlab(const uint32_t& LaneID) {
@@ -163,8 +178,9 @@ public:
   }
 
   __device__ __forceinline__ SlabAllocAddressT
-  allocateSlab(AllocatorContextT& TheAllocator, const uint32_t& LaneID) {
-    return TheAllocator.warpAllocate(LaneID);    
+  allocateSlab(typename AllocPolicy::AllocatorContextT& TheAllocator,
+               const uint32_t& LaneID) {
+    return TheAllocator.warpAllocate(LaneID);
   }
 
   __device__ __forceinline__ void freeSlab(const SlabAllocAddressT SlabPtr) {
@@ -172,21 +188,23 @@ public:
   }
 };
 
-template<typename KeyT, typename ValueT>
-class GpuSlabHash<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> {
-public:
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> {
+ public:
   std::string to_string();
   double computeLoadFactor(int Flag);
 
   void buildBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys);
   void buildBulkWithUniqueKeys(KeyT* KeysDevPtr,
-                              ValueT* ValuesDevPtr,
-                              uint32_t NumberOfKeys);
+                               ValueT* ValuesDevPtr,
+                               uint32_t NumberOfKeys);
 
   void searchIndividual(KeyT* KeyQueriesDevPtr,
-                       ValueT* ResultsDevPtr,
-                       uint32_t NumberOfQueries);
-  void searchBulk(KeyT* KeyQueriesDevPtr, ValueT* ResultsDevPtr, uint32_t NumberOfQueries);
+                        ValueT* ResultsDevPtr,
+                        uint32_t NumberOfQueries);
+  void searchBulk(KeyT* KeyQueriesDevPtr,
+                  ValueT* ResultsDevPtr,
+                  uint32_t NumberOfQueries);
 
   template <typename FilterTy, typename MapTy>
   void updateBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys);
@@ -197,24 +215,25 @@ public:
   void deleteIndividual(KeyT* KeysDevPtr, uint32_t NumberOfKeys);
 
   void batchedOperation(KeyT* KeysDevPtr,
-                       ValueT* ResultsDevPtr,
-                       uint32_t NumberOfOperations);
+                        ValueT* ResultsDevPtr,
+                        uint32_t NumberOfOperations);
 
   void countIndividual(KeyT* KeyQueriesDevPtr,
-                      uint32_t* CountDevPtr,
-                      uint32_t NumberOfQueries);
+                       uint32_t* CountDevPtr,
+                       uint32_t NumberOfQueries);
 
-private:
-  static constexpr uint32_t PrimeDivisor  = 4294967291u;
-  static constexpr uint32_t BlockSize     = 128;
-  static constexpr uint32_t WarpWidth     = 32;
+ private:
+  static constexpr uint32_t PrimeDivisor = 4294967291u;
+  static constexpr uint32_t BlockSize = 128;
+  static constexpr uint32_t WarpWidth = 32;
 
   uint32_t NumberOfBuckets;
 
-  GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::PhaseConcurrentMap> GpuContext;
-  DynamicAllocatorT* TheAllocator;
+  GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+      GpuContext;
+  typename AllocPolicy::DynamicAllocatorT* TheAllocator;
   uint32_t DeviceIndex;
-  uint8_t *BucketHeadSlabs;
+  uint8_t* BucketHeadSlabs;
 
   struct {
     uint32_t HashX;
@@ -222,19 +241,26 @@ private:
   } HashFunctionParameters;
 
  public:
-  GpuSlabHash(const uint32_t NumberOfBuckets, DynamicAllocatorT *TheAllocator, uint32_t DeviceIndex, const time_t Seed = 0, const bool IdentityHash = false) : NumberOfBuckets (NumberOfBuckets), TheAllocator(TheAllocator), DeviceIndex(DeviceIndex) {
+  GpuSlabHash(const uint32_t NumberOfBuckets,
+              typename AllocPolicy::DynamicAllocatorT* TheAllocator,
+              uint32_t DeviceIndex,
+              const time_t Seed = 0,
+              const bool IdentityHash = false)
+      : NumberOfBuckets(NumberOfBuckets)
+      , TheAllocator(TheAllocator)
+      , DeviceIndex(DeviceIndex) {
     size_t SlabSize = sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT);
     assert(TheAllocator && "The allocator is NULL");
-    assert(slabSize == (WarpWidth * sizeof(uint32_t)) && "Size of slab on PhaseConcurrentMap should be 128 bytes");
+    assert(slabSize == (WarpWidth * sizeof(uint32_t)) &&
+           "Size of slab on PhaseConcurrentMap should be 128 bytes");
 
     int DeviceCount = 0;
-    size_t SlabSize = sizefof
-    CUDA_CHECK_ERROR(cudaGetDeviceCount(&DeviceCount));
+    size_t SlabSize = sizefof CUDA_CHECK_ERROR(cudaGetDeviceCount(&DeviceCount));
     assert(DeviceIndex < DeviceCount);
 
     CUDA_CHECK_ERROR(cudaSetDevice(DeviceIndex));
 
-    /* TODO: Finish Implementation: 
+    /* TODO: Finish Implementation:
      * - Allocate head slabs
      * - Allocate value slabs and mutex slabs for head slabs.
      */
