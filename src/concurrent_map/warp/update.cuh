@@ -54,35 +54,35 @@ __device__ __forceinline__
       if (NextPtr == SlabHashT::EMPTY_INDEX_POINTER) {
         if (LaneID == SourceLane)
           ToBeUpdated = false;
-      } else  
+      } else
         CurrentSlabPtr = NextPtr;
-        IsHeadSlab = false;
-      }
-    } else {
-      if (LaneID == SourceLane) {
-        uint64_t* UpdatePtr = reinterpret_cast<uint64_t*>(
-            CurrentSlabPtr == SlabHashT::A_INDEX_POINTER
-                ? getPointerFromBucket(SourceBucket, FoundLane)
-                : getPointerFromSlab(CurrentPtr, FoundLane));
-        uint64_t CurrentKeyValuePair = *UpdatePtr;
-        uint32_t CurrentValueInSlab = static_cast<uint32_t>(CurrentKeyValuePair >> 16);
-        FilterTy F{};
-        MapTy M{CurrentValueInSlab};
+      IsHeadSlab = false;
+    }
+  }
+  else {
+    if (LaneID == SourceLane) {
+      uint64_t* UpdatePtr =
+          reinterpret_cast<uint64_t*>(CurrentSlabPtr == SlabHashT::A_INDEX_POINTER
+                                          ? getPointerFromBucket(SourceBucket, FoundLane)
+                                          : getPointerFromSlab(CurrentPtr, FoundLane));
+      uint64_t CurrentKeyValuePair = *UpdatePtr;
+      uint32_t CurrentValueInSlab = static_cast<uint32_t>(CurrentKeyValuePair >> 16);
+      FilterTy F{};
+      MapTy M{CurrentValueInSlab};
 
-        if (F(CurrentValueInSlab)) {
-          uint32_t NewValueForSlab = M(TheValue);
-          OldKeyValuePair = atomicCAS(UpdatePtr,
-                                      CurrentKeyValuePair,
-                                      (static_cast<uint64_t>(*reinterpret_cast<uint32_t*>(
-                                           reinterpret_cast<uint8_t*>(&NewValueForSlab)))
-                                       << 32) |
-                                          MyKey);
+      if (F(CurrentValueInSlab)) {
+        uint32_t NewValueForSlab = M(TheValue);
+        OldKeyValuePair = atomicCAS(UpdatePtr,
+                                    CurrentKeyValuePair,
+                                    (static_cast<uint64_t>(*reinterpret_cast<uint32_t*>(
+                                         reinterpret_cast<uint8_t*>(&NewValueForSlab)))
+                                     << 32) |
+                                        MyKey);
 
-          if (OldKeyValuePair == CurrentKeyValuePair)
-            ToBeUpdated = false;
-        } else {
+        if (OldKeyValuePair == CurrentKeyValuePair)
           ToBeUpdated = false;
-        }
+      } else {
+        ToBeUpdated = false;
       }
     }
   }
@@ -111,11 +111,90 @@ __device__ __forceinline__
 
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
     uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
+    uint32_t ReqKey =
+        __shfl_sync(0xFFFFFFFF,
+                    *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey))),
+                    SourceLane,
+                    32);
 
-    /* Implementation is incomplete.
-     * TODO: Finish the upsert device kernel
-     */
+    uint32_t* DataPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                            ? getPointerFromBucket(SourceBucket, LaneID)
+                            : getPointerFromSlab(CurrentSlabPtr, LaneID);
+    uint32_t Data = *DataPtr;
+
+    int FoundLane = __ffs(__ballot_sync(0xFFFFFFFF, Data == ReqKey) &
+                          SlabHashT::REGULAR_NODE_KEY_MASK) -
+                    1;
+    int EmptyLanes =
+        __ballot_sync(0xFFFFFFFF, Data == EMPTY_KEY) & SlabHashT::REGULAR_NODE_KEY_MASK;
+
+    if (FoundLane < 0) {
+      if (EmptyLanes == 0) {
+        uint32_t NextSlabPtr =
+            __shfl_sync(0xFFFFFFFF, Data, SlabHashT::NEXT_PTR_LANE, 32);
+        if (NextSlabPtr == SlabHashT::EMPTY_INDEX_POINTER) {
+          uint32_t NewSlabPtr = allocateSlab(TheAllocatorContext, LaneID);
+
+          if (LaneID == SlabHashT::NEXT_PTR_LANE) {
+            uint32_t* NextLanePtr =
+                IsHeadSlab ? getPointerFromBucket(SourceBucket, SlabHashT::NEXT_PTR_LANE)
+                           : getPointerFromSlab(CurrentSlabPtr, SlabHashT::NEXT_PTR_LANE);
+            uint32_t OldVAddr =
+                atomicCAS(NextLanePtr, SlabHashT::EMPTY_INDEX_POINTER, NewSlabPtr);
+            if (OldVAddr != SlabHashT::EMPTY_INDEX_POINTER)
+              freeSlab(NewSlabPtr);
+          }
+        }
+      } else {
+        CurrentSlabPtr = NextSlabPtr;
+        IsHeadSlab = false;
+      }
+    } else {
+      uint32_t InsertLane = __ffs(EmptyLanes & SlabHashT::REGULAR_NODE_KEY_MASK) - 1;
+
+      if (SourceLane == LaneID) {
+        uint32_t* InsertPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                                  ? getPointerFromBucket(SourceBucket, InsertLane)
+                                  : getPointerFromSlab(CurrentSlabPtr, InsertLane);
+
+        OldKeyValuePair = atomicCAS(
+            reinterpret_cast<uint64_t*>(InsertPtr),
+            EMPTY_PAIR_64,
+            (static_cast<uint64_t>(
+                 *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheValue)))
+             << 32) |
+                *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey))));
+
+        if (OldKeyValuePair == EMPTY_PAIR_64)
+          ToBeUpserted = false;
+      }
+    }
+    else {
+      if (LaneID == SourceLane) {
+        uint64_t* UpdatePtr = reinterpret_cast<uint64_t*>(
+            CurrentSlabPtr == SlabHashT::A_INDEX_POINTER
+                ? getPointerFromBucket(SourceBucket, FoundLane)
+                : getPointerFromSlab(CurrentPtr, FoundLane));
+        uint64_t CurrentKeyValuePair = *UpdatePtr;
+        uint32_t CurrentValueInSlab = static_cast<uint32_t>(CurrentKeyValuePair >> 16);
+        FilterTy F{};
+        MapTy M{CurrentValueInSlab};
+
+        if (F(CurrentValueInSlab)) {
+          uint32_t NewValueForSlab = M(TheValue);
+          OldKeyValuePair = atomicCAS(UpdatePtr,
+                                      CurrentKeyValuePair,
+                                      (static_cast<uint64_t>(*reinterpret_cast<uint32_t*>(
+                                           reinterpret_cast<uint8_t*>(&NewValueForSlab)))
+                                       << 32) |
+                                          MyKey);
+
+          if (OldKeyValuePair == CurrentKeyValuePair)
+            ToBeUpserted = false;
+        } else {
+          ToBeUpserted = false;
+        }
+      }
+    }
   }
-
-  __builtin_unreachable();
 }
