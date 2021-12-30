@@ -43,6 +43,15 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
 }
 
 template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
+    deleteIndividual(KeyT* d_query, uint32_t num_queries) {
+  CHECK_CUDA_ERROR(cudaSetDevice(device_idx));
+  const uint32_t num_blocks = (num_queries + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+  cset::delete_table_keys<KeyT, AllocPolicy>
+      <<<num_blocks, BLOCKSIZE_>>>(d_query, num_queries, gpu_context_);
+}
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 std::string
 GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::to_string() {
   std::string result;

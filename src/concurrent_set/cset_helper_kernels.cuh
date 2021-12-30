@@ -30,7 +30,8 @@ __global__ void build_table_kernel(
   }
 
   // initializing the memory allocator on each warp:
-  AllocatorContextT local_allocator_ctx(slab_hash.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT local_allocator_ctx(
+      slab_hash.getAllocatorContext());
   local_allocator_ctx.initAllocator(tid, laneId);
 
   KeyT myKey = 0;
@@ -75,5 +76,30 @@ __global__ void search_table(
   if (tid < num_queries) {
     d_results[tid] = myResult ? myQuery : SEARCH_NOT_FOUND;
   }
+}
+
+template <typename KeyT, typename AllocPolicy>
+__global__ void delete_table_keys(
+    KeyT* TheKeys,
+    uint32_t NumberOfKeys,
+    GpuSlabHashContext<KeyT, KeyT, AllocPolicy, SlabHashTypeT::ConcurrentSet>
+        SlabHashCtxt) {
+  uint32_t LaneID = threadIdx.x & 0x1F;
+  uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
+
+  if ((ThreadID - LaneID) >= NumberOfKeys)
+    return;
+
+  KeyT TheKey{};
+  uint32_t TheBucket = 0;
+  bool ToDelete = false;
+
+  if (ThreadID < NumberOfKeys) {
+    TheKey = TheKeys[ThreadID];
+    TheBucket = SlabHashCtxt.computeBucket(TheKey);
+    ToDelete = true;
+  }
+
+  SlabHashCtxt.deleteKey(ToDelete, LaneID, TheKey, TheBucket);
 }
 };  // namespace cset
