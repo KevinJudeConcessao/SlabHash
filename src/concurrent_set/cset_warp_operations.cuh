@@ -1,5 +1,6 @@
 /*
  * Copyright 2019 Saman Ashkiani
+ * Copyright 2021 [TODO: Assign copyright]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +17,14 @@
 
 #pragma once
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ bool
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::insertKey(
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::insertKey(
     bool& to_be_inserted,
     const uint32_t& laneId,
     const KeyT& myKey,
     const uint32_t bucket_id,
-    AllocatorContextT& local_allocator_ctx) {
+    typename AllocPolicy::AllocatorContextT& local_allocator_ctx) {
   using SlabHashT = ConcurrentSetT<KeyT>;
   uint32_t work_queue = 0;
   uint32_t last_work_queue = 0;
@@ -91,9 +92,9 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::insertKey(
 }
 
 // ========
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ bool
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::searchKey(
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::searchKey(
     bool& to_be_searched,
     const uint32_t& laneId,
     const KeyT& myKey,
@@ -138,9 +139,7 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::searchKey(
   return myResult;
 }
 
-template <typename KeyT, typename ValueT>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ bool
-GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::searchKeyBulk(
-    const uint32_t& laneId,
-    const KeyT& myKey,
-    const uint32_t bucket_id) {}
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
+    searchKeyBulk(const uint32_t& laneId, const KeyT& myKey, const uint32_t bucket_id) {}

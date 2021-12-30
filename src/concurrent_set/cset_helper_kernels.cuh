@@ -1,5 +1,6 @@
 /*
  * Copyright 2019 Saman Ashkiani
+ * Copyright 2021 [TODO: Assign copyright]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +17,11 @@
 
 #pragma once
 namespace cset {
-template <typename KeyT>
+template <typename KeyT, typename AllocPolicy>
 __global__ void build_table_kernel(
     KeyT* d_key,
     uint32_t num_keys,
-    GpuSlabHashContext<KeyT, KeyT, SlabHashTypeT::ConcurrentSet> slab_hash) {
+    GpuSlabHashContext<KeyT, KeyT, AllocPolicy, SlabHashTypeT::ConcurrentSet> slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 
@@ -46,12 +47,12 @@ __global__ void build_table_kernel(
 }
 
 //=== Individual search kernel:
-template <typename KeyT>
+template <typename KeyT, typename AllocPolicy>
 __global__ void search_table(
     KeyT* d_queries,
     KeyT* d_results,
     uint32_t num_queries,
-    GpuSlabHashContext<KeyT, KeyT, SlabHashTypeT::ConcurrentSet> slab_hash) {
+    GpuSlabHashContext<KeyT, KeyT, AllocPolicy, SlabHashTypeT::ConcurrentSet> slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 

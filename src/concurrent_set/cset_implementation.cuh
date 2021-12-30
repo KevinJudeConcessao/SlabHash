@@ -1,5 +1,6 @@
 /*
  * Copyright 2019 Saman Ashkiani
+ * Copyright 2021 [TODO: Assign copyright]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,31 +17,30 @@
 
 #pragma once
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::buildBulk(
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::buildBulk(
     KeyT* d_key,
     ValueT* d_value,
     uint32_t num_keys) {
   const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
   // calling the kernel for bulk build:
   CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
-  cset::build_table_kernel<KeyT>
+  cset::build_table_kernel<KeyT, AllocPolicy>
       <<<num_blocks, BLOCKSIZE_>>>(d_key, num_keys, gpu_context_);
 }
 
-template <typename KeyT, typename ValueT>
-void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::searchIndividual(
-    KeyT* d_query,
-    ValueT* d_result,
-    uint32_t num_queries) {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
+    searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_queries) {
   CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
   const uint32_t num_blocks = (num_queries + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-  cset::search_table<KeyT>
+  cset::search_table<KeyT, AllocPolicy>
       <<<num_blocks, BLOCKSIZE_>>>(d_query, d_result, num_queries, gpu_context_);
 }
 
-template <typename KeyT, typename ValueT>
-std::string GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentSet>::to_string() {
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+std::string
+GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::to_string() {
   std::string result;
   result += " ==== GpuSlabHash: \n";
   result += "\t Running on device \t\t " + std::to_string(device_idx_) + "\n";
