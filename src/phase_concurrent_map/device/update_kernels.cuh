@@ -36,7 +36,8 @@ __global__ __forceinline__
   if ((ThreadID - LaneID) >= NumberOfKeys)
     return;
 
-  AllocatorContextT TheAllocatorContext(SlabHashCtxt.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT TheAllocatorContext(
+      SlabHashCtxt.getAllocatorContext());
   TheAllocatorContext.initAllocator(ThreadID, LaneID);
 
   KeyT TheKey{};
@@ -74,7 +75,8 @@ __global__ __forceinline__
   if ((ThreadID - LaneID) >= NumberOfKeys)
     return;
 
-  AllocatorContextT TheAllocatorContext(SlabHashCtxt.getAllocatorContext());
+  typename AllocPolicy::AllocatorContextT TheAllocatorContext(
+      SlabHashCtxt.getAllocatorContext());
   TheAllocatorContext.initAllocator(ThreadID, LaneID);
 
   KeyT TheKey{};
