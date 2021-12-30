@@ -17,6 +17,10 @@
 
 #pragma once
 
+#include <algorithm>
+#include <functional>
+#include <memory>
+
 template <typename KeyT, typename ValueT, typename AllocPolicy>
 void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::buildBulk(
     KeyT* d_key,
@@ -52,4 +56,55 @@ GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::to_string(
   result += "\t hash function = \t\t (" + std::to_string(hf_.x) + ", " +
             std::to_string(hf_.y) + ")\n";
   return result;
+}
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+double
+GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::computeLoadFactor(
+    int = 0) {
+  auto FreeDeviceMem = [](const void* Ptr) -> void { CHECK_ERROR(cudaFree(Ptr)); }
+
+  std::unique_ptr<uint32_t>
+      BucketKeyCount{new uint32_t[NumberOfBuckets]};
+  std::unique_ptr<uint32_t> BucketSlabCount{new uint32_t[NumberOfBuckets]};
+
+  uint32_t* _BucketKeyCountDev;
+  uint32_t* _BucketSlabCountDev;
+
+  CHECK_ERROR(cudaMalloc(reinterpret_cast<void**>(&_BucketKeyCountDev),
+                         sizeof(uint32_t) * NumberOfBuckets));
+  CHECK_ERROR(cudaMemset(_BucketKeyCountDev, 0, sizeof(uint32_t) * NumberOfBuckets));
+
+  CHECK_ERROR(cudaMalloc(reinterpret_cast<void**>(&_BucketSlabCountDev),
+                         sizeof(uint32_t) * NumberOfBuckets));
+  CHECK_ERROR(cudaMemset(_BucketSlabCountDev, 0, sizeof(uint32_t) * NumberOfBuckets));
+
+  std::unique_ptr<uint32_t, decltype(FreeDeviceMem)> BucketKeyCountDev{_BucketKeyCountDev,
+                                                                       FreeDeviceMem};
+  std::unique_ptr<uint32_t, decltype(FreeDeviceMem)> BucketSlabCountDev{
+      _BucketSlabCountDev, FreeDeviceMem};
+
+  uint32_t NumberOfThreadBlocks =
+      (NumberOfBuckets * WarpWidth + BlockSize - 1) / BlockSize;
+  bucket_count_kernel<KeyT, ValueT, AllocPolicy><<<NumberOfThreadBlocks, BlockSize>>>(
+      SlabHashCtxt, BucketKeyCountDev.get(), BucketSlabCountDev.get(), NumberOfBuckets);
+
+  CHECK_ERROR(cudaMemcpy(BucketKeyCount.get(),
+                         BucketKeyCountDev.get(),
+                         sizeof(uint32_t) * NumberOfBuckets,
+                         cudaMemcpyDeviceToHost));
+  CHECK_ERROR(cudaMemcpy(BucketSlabCount.get(),
+                         BucketSlabCountDev.get(),
+                         sizeof(uint32_t) * NumberOfBuckets,
+                         cudaMemcpyDeviceToHost));
+
+  int NumberOfElements =
+      std::accumulate(BucketKeyCount.get(), BucketKeyCount.get() + NumberOfBuckets, 0);
+  int NumberOfSlabs =
+      std::accumulate(BucketSlabCount.get(), BucketSlabCount.get() + NumberOfBuckets, 0);
+
+  double LoadFactor = static_cast<double>(NumberOfElements * sizeof(KeyT)) /
+                      static_cast<double>(NumberOfSlabs * WARP_WIDTH_ * sizeof(uint32_t));
+
+  return LoadFactor;
 }

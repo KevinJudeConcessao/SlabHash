@@ -232,7 +232,7 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet> {
   // returns some debug information about the slab hash
   std::string to_string();
 
-  double computeLoadFactor(int flag) {}
+  double computeLoadFactor(int flag);
 
   GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
   getSlabHashContext() {
