@@ -136,6 +136,7 @@ class ConcurrentMapT {
   static constexpr uint32_t REGULAR_NODE_ADDRESS_MASK = 0x30000000;
   static constexpr uint32_t REGULAR_NODE_DATA_MASK = 0x3FFFFFFF;
   static constexpr uint32_t REGULAR_NODE_KEY_MASK = 0x15555555;
+  static constexpr uint32_t NEXT_PTR_LANE = 31u;
 
   using SlabTypeT = concurrent_slab<KeyT, ValueT>;
 
