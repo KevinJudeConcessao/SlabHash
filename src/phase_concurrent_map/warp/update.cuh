@@ -45,10 +45,10 @@ __device__ __forceinline__
                     SourceLane,
                     32);
 
-    uint32_t* DataPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+    uint32_t* PtrData = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
                             ? getPointerFromBucket(SourceBucket, LaneID)
                             : getPointerFromSlab(CurrentSlabPtr, LaneID);
-    uint32_t Data = *DataPtr;
+    uint32_t Data = *PtrData;
 
     int FoundLane =
         (__ballot_sync(0xFFFFFFFF, Data == ReqKey) & SlabHashT::REGULAR_NODE_KEY_MASK) -
@@ -71,11 +71,14 @@ __device__ __forceinline__
           __shfl_sync(0xFFFFFFFF, Data, SlabHashT::MUTEX_PTR_LANE, 32);
 
       if (LaneID == SourceLane) {
+        uint32_t* KeyPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                               ? getPointerFromBucket(SourceBucket, UpdateLane)
+                               : getPointerFromSlab(CurrentSlabPtr, UpdateLane);
         uint32_t* ValuePtr = getPointerFromSlab(ValueSlabVAddr, UpdateLane);
         uint32_t* MutexPtr = getPointerFromSlab(MutexSlabVAddr, UpdateLane);
 
         if (atomicCAS(MutexPtr, EMPTY_KEY, 0) == EMPTY_KEY) {
-          uint32_t Key = *DataPtr;
+          uint32_t Key = *KeyPtr;
           uint32_t Value = *ValuePtr;
 
           if (Key ==
@@ -126,10 +129,10 @@ __device__ __forceinline__
                     SourceLane,
                     32);
 
-    uint32_t* DataPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+    uint32_t* PtrData = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
                             ? getPointerFromBucket(SourceBucket, LaneID)
                             : getPointerFromSlab(CurrentSlabPtr, LaneID);
-    uint32_t Data = *DataPtr;
+    uint32_t Data = *PtrData;
 
     int FoundLane = __ffs(__ballot_sync(0xFFFFFFFF, Data == ReqKey) &
                           SlabHashT::REGULAR_NODE_KEY_MASK) -
@@ -183,13 +186,15 @@ __device__ __forceinline__
             __shfl_sync(0xFFFFFFFF, Data, SlabHashT::MUTEX_PTR_LANE, 32);
 
         if (SourceLane == LaneID) {
+          uint32_t* KeyPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                                 ? getPointerFromBucket(SourceBucket, InsertLane)
+                                 : getPointerFromSlab(CurrentSlabPtr, InsertLane);
           uint32_t* ValuePtr = getPointerFromSlab(ValueSlabVAddr, InsertLane);
           uint32_t* MutexPtr = getPointerFromSlab(MutexSlabVAddr, InsertLane);
 
           if (atomicCAS(MutexPtr, EMPTY_KEY, 0) == EMPTY_KEY) {
-            if ((static_cast<uint64_t>(*ValuePtr) << 32 | *DataPtr) == EMPTY_PAIR_64) {
-              *DataPtr =
-                  *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey));
+            if ((static_cast<uint64_t>(*ValuePtr) << 32 | *KeyPtr) == EMPTY_PAIR_64) {
+              *KeyPtr = *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey));
               *ValuePtr =
                   *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheValue));
               ToBeUpserted = false;
@@ -208,11 +213,14 @@ __device__ __forceinline__
           __shfl_sync(0xFFFFFFFF, Data, SlabHashT::MUTEX_PTR_LANE, 32);
 
       if (LaneID == SourceLane) {
+        uint32_t* KeyPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                               ? getPointerFromBucket(SourceBucket, UpdateLane)
+                               : getPointerFromSlab(CurrentSlabPtr, UpdateLane);
         uint32_t* ValuePtr = getPointerFromSlab(ValueSlabVAddr, UpdateLane);
         uint32_t* MutexPtr = getPointerFromSlab(MutexSlabVAddr, UpdateLane);
 
         if (atomicCAS(MutexPtr, EMPTY_KEY, 0) == EMPTY_KEY) {
-          uint32_t Key = *DataPtr;
+          uint32_t Key = *KeyPtr;
           uint32_t Value = *ValuePtr;
 
           if (Key ==
