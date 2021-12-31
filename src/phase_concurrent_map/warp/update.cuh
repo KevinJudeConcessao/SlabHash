@@ -99,7 +99,8 @@ __device__ __forceinline__
 template <typename FilterTy, typename MapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__
-    typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
+    typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value,
+                            UpdateStatusKind>::type
     GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
         upsertPair(bool& ToBeUpserted,
                    const uint32_t& LaneID,
@@ -112,6 +113,7 @@ __device__ __forceinline__
   uint32_t WorkQueue = 0;
   uint32_t CurrentSlabPtr = SlabHashT::A_INDEX_POINTER;
   bool IsHeadSlab = true;
+  UpsertStatusKind UpsertStatus = USK_FAIL;
 
   while ((WorkQueue = __ballot_sync(0xFFFFFFFF, ToBeUpserted)) != 0) {
     CurrentSlabPtr = IsHeadSlab ? SlabHashT::A_INDEX_POINTER : CurrentSlabPtr;
@@ -191,6 +193,7 @@ __device__ __forceinline__
               *ValuePtr =
                   *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheValue));
               ToBeUpserted = false;
+              UpsertStatus = USK_INSERT;
             }
 
             atomicExch(MutexPtr, EMPTY_KEY);
@@ -217,9 +220,13 @@ __device__ __forceinline__
             FilterTy F{};
             MapTy M{Value};
 
-            if (F(Value))
+            if (F(Value)) {
               *ValuePtr =
                   *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheValue)));
+              UpsertStatus = USK_UPDATE;
+            } else {
+              UpsertStatus = USK_FAIL;
+            }
 
             ToBeUpserted = false;
           }
@@ -228,6 +235,8 @@ __device__ __forceinline__
       }
     }
   }
+
+  return UpsertStatus;
 }
 
 #endif  // PCMAP_HASH_CTXT_UPDATE_H_

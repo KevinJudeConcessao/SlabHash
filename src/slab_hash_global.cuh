@@ -251,3 +251,9 @@ enum OperationKind {
   OK_UPDATE,
   OK_UPSERT,
 };
+
+enum UpsertStatusKind {
+  USK_FAIL,
+  USK_INSERT,
+  USK_UPDATE,
+};

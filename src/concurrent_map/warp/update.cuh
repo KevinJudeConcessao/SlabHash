@@ -18,15 +18,15 @@
 
 template <typename FilterTy, typename MapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
-__device__ __forceinline__
-    typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
-    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::updatePair(
-        bool& ToBeUpdated,
-        const uint32_t& LaneID,
-        const KeyT& TheKey,
-        const ValueT& TheValue,
-        const uint32_t BucketID,
-        typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
+__device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
+                                                   MapCheck<MapTy>::value>::type
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::updatePair(
+    bool& ToBeUpdated,
+    const uint32_t& LaneID,
+    const KeyT& TheKey,
+    const ValueT& TheValue,
+    const uint32_t BucketID,
+    typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -90,21 +90,23 @@ __device__ __forceinline__
 
 template <typename FilterTy, typename MapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
-__device__ __forceinline__
-    typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
-    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upsertPair(
-        bool& ToBeUpserted,
-        const uint32_t& LaneID,
-        const KeyT& TheKey,
-        const ValueT& TheValue,
-        const uint32_t BucketID,
-        typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
+__device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
+                                                       MapCheck<MapTy>::value,
+                                                   UpsertStatusKind>::type
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upsertPair(
+    bool& ToBeUpserted,
+    const uint32_t& LaneID,
+    const KeyT& TheKey,
+    const ValueT& TheValue,
+    const uint32_t BucketID,
+    typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
   uint32_t CurrentSlabPtr = SlabHashT::A_INDEX_POINTER;
   bool IsHeadSlab = true;
   uint64_t OldKeyValuePair = 0;
+  UpsertStatusKind UpsertStatus = USK_FAIL;
 
   while ((WorkQueue = __ballot_sync(0xFFFFFFFF, ToBeUpserted)) != 0) {
     CurrentSlabPtr = IsHeadSlab ? SlabHashT::A_INDEX_POINTER : CurrentSlabPtr;
@@ -165,8 +167,10 @@ __device__ __forceinline__
              << 32) |
                 *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey))));
 
-        if (OldKeyValuePair == EMPTY_PAIR_64)
+        if (OldKeyValuePair == EMPTY_PAIR_64) {
           ToBeUpserted = false;
+          UpsertStatus = USK_INSERT;
+        }
       }
     }
     else {
@@ -189,12 +193,17 @@ __device__ __forceinline__
                                        << 32) |
                                           MyKey);
 
-          if (OldKeyValuePair == CurrentKeyValuePair)
+          if (OldKeyValuePair == CurrentKeyValuePair) {
             ToBeUpserted = false;
+            UpsertStatus = USK_UPDATE;
+          }
         } else {
           ToBeUpserted = false;
+          UpsertStatus = USK_FAIL;
         }
       }
     }
   }
+
+  return UpsertStatus;
 }
