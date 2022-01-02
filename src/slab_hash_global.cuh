@@ -92,9 +92,9 @@ using PhaseConcurrentSlab = PhaseConcurrentKeySlab<KeyT, ValueT>;
 template <typename KeyT, typename ValueT>
 struct __align__(32) PhaseConcurrentValueSlab {
   ValueT Values[PhaseConcurrentKeySlab::NUM_ELEMENTS_PER_SLAB];
-  uint32_t _0 [1];
-  uint32_t _1 [1];
-  uint32_t _2 [1];
+  uint32_t _0[1];
+  uint32_t _1[1];
+  uint32_t _2[1];
 };
 
 /*
@@ -112,8 +112,10 @@ struct LightAllocatorPolicy {
   static constexpr uint32_t NumberOfSuperBlocks = NumSuperBlocks;
   static constexpr uint32_t NumberOfReplicas = NumReplicas;
 
-  using DynamicAllocatorT = SlabAllocLight<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
-  using AllocatorContextT = SlabAllocLightContext<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
+  using DynamicAllocatorT =
+      SlabAllocLight<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
+  using AllocatorContextT =
+      SlabAllocLightContext<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
 };
 
 template <uint32_t LogNumMemoryBlocks, uint32_t NumSuperBlocks, uint32_t NumReplicas = 1u>
@@ -123,7 +125,8 @@ struct FullAllocatorPolicy {
   static constexpr uint32_t NumberOfReplicas = NumReplicas;
 
   using DynamicAllocatorT = SlabAlloc<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
-  using AllocatorContextT = SlabAllocLight<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
+  using AllocatorContextT =
+      SlabAllocLight<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
 };
 
 template <typename KeyT, typename ValueT>
@@ -165,25 +168,25 @@ class PhaseConcurrentMapT {
  public:
   /* Fixed parameters for the data structure */
 
-  static constexpr uint32_t A_INDEX_POINTER     = 0xFFFFFFFD;
+  static constexpr uint32_t A_INDEX_POINTER = 0xFFFFFFFD;
   static constexpr uint32_t EMPTY_INDEX_POINTER = 0xFFFFFFFF;
 
-  static constexpr uint32_t BASE_UNIT_SIZE  = 32;
-  static constexpr uint32_t MUTEX_PTR_LANE  = 29;
+  static constexpr uint32_t BASE_UNIT_SIZE = 32;
+  static constexpr uint32_t MUTEX_PTR_LANE = 29;
   static constexpr uint32_t VALUES_PTR_LANE = 30;
-  static constexpr uint32_t NEXT_PTR_LANE   = 31;
+  static constexpr uint32_t NEXT_PTR_LANE = 31;
 
-  static constexpr uint32_t REGULAR_NODE_KEY_MASK     = 0x1FFFFFFF;
-  static constexpr uint32_t REGULAR_NODE_DATA_MASK    = 0x20000000;
-  static constexpr uint32_t REGULAR_NODE_MUTEX_MASK   = 0x40000000;
+  static constexpr uint32_t REGULAR_NODE_KEY_MASK = 0x1FFFFFFF;
+  static constexpr uint32_t REGULAR_NODE_DATA_MASK = 0x20000000;
+  static constexpr uint32_t REGULAR_NODE_MUTEX_MASK = 0x40000000;
   static constexpr uint32_t REGULAR_NODE_ADDRESS_MASK = 0x80000000;
 
-  using KeySlabTypeT    = PhaseConcurrentKeySlab<KeyT, ValueT>;
-  using ValueSlabTypeT  = PhaseConcurrentValueSlab<KeyT, ValueT>;
-  using SlabTypeT       = KeySlabTypeT;
+  using KeySlabTypeT = PhaseConcurrentKeySlab<KeyT, ValueT>;
+  using ValueSlabTypeT = PhaseConcurrentValueSlab<KeyT, ValueT>;
+  using SlabTypeT = KeySlabTypeT;
 
   static std::string getTypeName() { return std::string("PhaseConcurrentMap"); }
-}; 
+};
 
 // the main class to be specialized for different types of hash tables
 template <typename KeyT, typename ValueT, typename AllocPolicy, SlabHashTypeT SlabHashT>
@@ -201,47 +204,74 @@ constexpr uint32_t num_replicas = 1;
 }  // namespace slab_alloc_par
 
 using DynamicAllocatorT = SlabAllocLight<slab_alloc_par::log_num_mem_blocks,
-                                    slab_alloc_par::num_super_blocks,
-                                    slab_alloc_par::num_replicas>;
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>;
 
 using AllocatorContextT = SlabAllocLightContext<slab_alloc_par::log_num_mem_blocks,
-                                           slab_alloc_par::num_super_blocks,
-                                           slab_alloc_par::num_replicas>;
+                                                slab_alloc_par::num_super_blocks,
+                                                slab_alloc_par::num_replicas>;
 
 using SlabAddressT = uint32_t;
 using BucketAddressT = SlabAddressT;
 
-template <typename FilterTy>
-struct FilterCheck
-    : typename std::conditional<
-          std::is_same<decltype(std::declval<FilterTy>()(std::declval<uint32_t>())),
-                       bool>::value,
-          std::true_type,
-          std::false_type>::type {};
+/*
+ * Used in stateful context.
+ */
 
-template <typename MapTy>
-struct MapCheck : typename std::conditional<
-                      std::is_same<decltype(std::declval<MapTy>(std::declval<uint32_t>())(
-                                       std::declval<uint32_t>())),
-                                   uint32_t>::value,
-                      std::true_type,
-                      std::false_type>::type {};
-
+template <typename ValueTy>
 struct AlwaysTrueFilter {
+  template <typename... ContextArgs>
+  __device__ __host__ AlwaysTrueFilter(ContextArgs&&... TheArguments) {}
+  __device__ __host__ AlwaysTrueFilter(const AlwaysTrueFilter&) = default;
+
+  __device__ bool operator()(const ValueTy&) const { return true; }
+};
+
+/*
+ * Used in stateful context.
+ */
+
+template <typename ValueTy>
+struct IdentityMap {
+  using ResultType = ValueTy;
+  template <typename... ContextArgs>
+  __device__ __host__ IdentityMap(ContextArgs&&... TheArguments) {}
+  __device__ __host__ IdentityMap(const IdentityMap&) = default;
+
+  __device__ ResultTy operator(const ValueTy& CurrentValue)() { return CurrentValue; }
+};
+
+/*
+ * Used in stateless context.
+ */
+
+template <typename ValueT>
+struct AlwaysTrueFilterStateless {
   __device__ __host__ AlwaysTrueFilter() = default;
   __device__ __host__ AlwaysTrueFilter(const AlwaysTrueFilter&) = default;
 
-  __device__ bool operator()(uint32_t) { return true; }
+  __device__ bool operator()(const ValueT&) { return true; }
 };
 
-struct IdentityMap {
-  __device__ __host__ IdentityMap(uint32_t Current) : CurrentValue{Current} {}
+/*
+ * Used in stateless context.
+ */
+
+template <typename ValueT>
+struct IdentityMapStateless {
+  __device__ __host__ IdentityMap() = default;
   __device__ __host__ IdentityMap(const IdentityMap&) = default;
 
-  __device__ uint32_t operator()(uint32_t NewFieldVal) { return CurrentValue; }
+  __device__ const ValueT& operator()(const ValueT& TheValue) { return TheValue; }
+};
 
- private:
-  uint32_t CurrentValue;
+template <typename ValueT>
+struct IdentityFilterMap {
+  template <typename... ContextArgs>
+  __device__ __host__ IdentityFilterMap(ContextArgs&&... TheArguments) {}
+  __device__ __host__ IdentityFilterMap(const IdentityFilterMap&) = default;
+
+  __device__ const ValueT& operator()(const ValueT& TheValue) { return TheValue; }
 };
 
 enum OperationKind {

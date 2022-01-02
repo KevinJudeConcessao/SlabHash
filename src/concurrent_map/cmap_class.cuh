@@ -108,28 +108,27 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
 
   // threads in a warp cooperate with each other to update the value of a key into the
   // slab hash
-  template <typename FilterTy, typename MapTy>
-  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
-                                                     MapCheck<MapTy>::value>::type
-  updatePair(bool& to_be_updated,
-             const uint32_t& laneId,
-             const KeyT& myKey,
-             const ValueT& myValue,
-             const uint32_t bucket_id,
-             typename AllocPolicy::AllocatorContextT& local_allocator_context);
+  template <typename FilterMapTy>
+  void updatePair(bool& to_be_updated,
+                  const uint32_t& laneId,
+                  const KeyT& myKey,
+                  const ValueT& myValue,
+                  const uint32_t bucket_id,
+                  typename AllocPolicy::AllocatorContextT& local_allocator_context,
+                  FilterMapTy* FilterMaps = nullptr);
 
   // threads in a warp cooperate with each other to insert a new key-value pair into
   // the slab hash; if the key is found, the value is updated to with a new value
 
-  template <typename FilterTy, typename MapTy>
-  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
-                                                     MapCheck<MapTy>::value>::type
-  upsertPair(bool& to_be_upserted,
-             const uint32_t& laneId,
-             const KeyT& myKey,
-             const ValueT& myValue,
-             const uint32_t bucket_id,
-             typename AllocPolicy::AllocatorContextT& local_allocator_context);
+  template <typename FilterTy>
+  __device__ __forceinline__ void upsertPair(
+      bool& to_be_upserted,
+      const uint32_t& laneId,
+      const KeyT& myKey,
+      const ValueT& myValue,
+      const uint32_t bucket_id,
+      typename AllocPolicy::AllocatorContextT& local_allocator_context,
+      FilterTy* Filters = nullptr);
 
   // threads in a warp cooperate with each other to search for keys
   // if found, it returns the corresponding value, else SEARCH_NOT_FOUND
@@ -293,11 +292,17 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> {
   void buildBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
   void buildBulkWithUniqueKeys(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
 
-  template <typename FilterTy, typename MapTy>
-  void updateBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
+  template <typename FilterMapTy>
+  void updateBulk(KeyT* d_key,
+                  ValueT* d_value,
+                  uint32_t num_keys,
+                  FilterMapTy* filter_maps = nullptr);
 
-  template <typename FilterTy, typename MapTy>
-  void upsertBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
+  template <typename FilterTy>
+  void upsertBulk(KeyT* d_key,
+                  ValueT* d_value,
+                  uint32_t num_keys,
+                  FilterTy* filters = nullptr);
 
   void searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_queries);
   void searchBulk(KeyT* d_query, ValueT* d_result, uint32_t num_queries);

@@ -32,8 +32,10 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
   __host__ __device__ GpuSlabHashContext() = default;
 
   __host__ __device__ GpuSlabHashContext(
-      const GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>&
-          TheContext)
+      const GpuSlabHashContext<KeyT,
+                               ValueT,
+                               AllocPolicy,
+                               SlabHashTypeT::PhaseConcurrentMap>& TheContext)
       : NumberOfBuckets{TheContext.NumberOfBuckets}
       , HashX{TheContext.HashX}
       , HashY{TheContext.HashY}
@@ -108,25 +110,25 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
       const uint32_t BucketID,
       typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
 
-  template <typename FilterTy, typename MapTy>
-  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
-                                                     MapCheck<MapTy>::value>::type
-  updatePair(bool& ToBeUpdated,
-             const uint32_t& LaneID,
-             const KeyT& TheKey,
-             const Value& TheValue,
-             const uint32_t BucketID,
-             typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
+  template <typename FilterMapTy>
+  __device__ __forceinline__ void updatePair(
+      bool& ToBeUpdated,
+      const uint32_t& LaneID,
+      const KeyT& TheKey,
+      const Value& TheValue,
+      const uint32_t BucketID,
+      typename AllocPolicy::AllocatorContextT& TheAllocatorContext,
+      FilterMapTy* FilterMaps = nullptr);
 
-  template <typename FilterTy, typename MapTy>
-  __device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
-                                                     MapCheck<MapTy>::value>::type
-  upsertPair(bool& ToBeUpserted,
-             const uint32_t& LaneID,
-             const KeyT& TheKey,
-             const Value& TheValue,
-             const uint32_t BucketID,
-             typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
+  template <typename FilterTy>
+  __device__ __forceinline__ void upsertPair(
+      bool& ToBeUpserted,
+      const uint32_t& LaneID,
+      const KeyT& TheKey,
+      const Value& TheValue,
+      const uint32_t BucketID,
+      typename AllocPolicy::AllocatorContextT& TheAllocatorContext,
+      FilterTy* Filters = nullptr);
 
   __device__ __forceinline__ void searchKey(bool& ToBeSearched,
                                             const uint32_t& LaneID,
@@ -150,14 +152,12 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
                                             const KeyT& TheKey,
                                             const uint32_t BucketID);
 
-  /* TODO: Expand */
   __device__ __forceinline__ uint32_t* getPointerFromSlab(
       const SlabAddressT& TheSlabAddress,
       uint32_t LaneID) {
     return TheAllocatorContext.getPointerFromSlab(TheSlabAddress, LaneID);
   }
 
-  /* TODO: Expand */
   __device__ __forceinline__ uint32_t* getPointerFromBucket(const uint32_t BucketID,
                                                             const uint32_t LaneID) {
     return reinterpret_cast<uint32_t*>(&BucketHeadSlabs[BucketID]) + LaneID;
@@ -206,11 +206,17 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
                   ValueT* ResultsDevPtr,
                   uint32_t NumberOfQueries);
 
-  template <typename FilterTy, typename MapTy>
-  void updateBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys);
+  template <typename FilterMapTy>
+  void updateBulk(KeyT* KeysDevPtr,
+                  ValueT* ValuesDevPtr,
+                  uint32_t NumberOfKeys,
+                  FilterMapTy* FilterMaps = nullptr);
 
-  template <typename FilterTy, typename MapTy>
-  void upsertBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys);
+  template <typename FilterTy>
+  void upsertBulk(KeyT* KeysDevPtr,
+                  ValueT* ValuesDevPtr,
+                  uint32_t NumberOfKeys,
+                  FilterTy* Filters = nullptr);
 
   void deleteIndividual(KeyT* KeysDevPtr, uint32_t NumberOfKeys);
 
@@ -269,4 +275,4 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
   }
 };
 
-#endif // PCMAP_CLASS_CUH_
+#endif  // PCMAP_CLASS_CUH_

@@ -16,17 +16,17 @@
 
 #pragma once
 
-template <typename FilterTy, typename MapTy>
+template <typename FilterMapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
-__device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
-                                                   MapCheck<MapTy>::value>::type
+__device__ __forceinline__ void
 GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::updatePair(
     bool& ToBeUpdated,
     const uint32_t& LaneID,
     const KeyT& TheKey,
     const ValueT& TheValue,
     const uint32_t BucketID,
-    typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
+    typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt,
+    FilterMapTy* FilterMap) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -66,12 +66,12 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upd
                                           ? getPointerFromBucket(SourceBucket, FoundLane)
                                           : getPointerFromSlab(CurrentPtr, FoundLane));
       uint64_t CurrentKeyValuePair = *UpdatePtr;
-      uint32_t CurrentValueInSlab = static_cast<uint32_t>(CurrentKeyValuePair >> 16);
-      FilterTy F{};
-      MapTy M{CurrentValueInSlab};
+      uint32_t CurrentValueInSlab = static_cast<uint32_t>(CurrentKeyValuePair >> 32);
+      ValueT NewValueForSlab = (FilterMap != nullptr)
+                                   ? (*FilterMap)(CurrentValueInSlab, TheValue)
+                                   : FilterMapTy()(CurrentValueInSlab, TheValue);
 
-      if (F(CurrentValueInSlab)) {
-        uint32_t NewValueForSlab = M(TheValue);
+      if (NewValueForSlab != CurrentValueInSlab) {
         OldKeyValuePair = atomicCAS(UpdatePtr,
                                     CurrentKeyValuePair,
                                     (static_cast<uint64_t>(*reinterpret_cast<uint32_t*>(
@@ -88,18 +88,17 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upd
   }
 }
 
-template <typename FilterTy, typename MapTy>
+template <typename FilterTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
-__device__ __forceinline__ typename std::enable_if<FilterCheck<FilterTy>::value &&
-                                                       MapCheck<MapTy>::value,
-                                                   UpsertStatusKind>::type
+__device__ __forceinline__ UpsertStatusKind
 GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upsertPair(
     bool& ToBeUpserted,
     const uint32_t& LaneID,
     const KeyT& TheKey,
     const ValueT& TheValue,
     const uint32_t BucketID,
-    typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt) {
+    typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt,
+    FilterTy* Filter) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -181,15 +180,15 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::ups
                 : getPointerFromSlab(CurrentPtr, FoundLane));
         uint64_t CurrentKeyValuePair = *UpdatePtr;
         uint32_t CurrentValueInSlab = static_cast<uint32_t>(CurrentKeyValuePair >> 16);
-        FilterTy F{};
-        MapTy M{CurrentValueInSlab};
+        bool FilterStatus = (Filter != nullptr)
+                                ? (*Filter)(CurrentValueInSlab, TheValue)
+                                : FilterTy()(CurrentValueInSlab, TheValue);
 
-        if (F(CurrentValueInSlab)) {
-          uint32_t NewValueForSlab = M(TheValue);
+        if (FilterStatus) {
           OldKeyValuePair = atomicCAS(UpdatePtr,
                                       CurrentKeyValuePair,
                                       (static_cast<uint64_t>(*reinterpret_cast<uint32_t*>(
-                                           reinterpret_cast<uint8_t*>(&NewValueForSlab)))
+                                           reinterpret_cast<uint8_t*>(&TheValue)))
                                        << 32) |
                                           MyKey);
 

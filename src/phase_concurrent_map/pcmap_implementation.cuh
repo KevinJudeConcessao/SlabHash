@@ -98,26 +98,32 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
       KeysDevPtr, CountDevPtr, NumberOfQueries, SlabHashCtxt);
 }
 
-template <typename FilterTy, typename MapTy>
+template <typename FilterMapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
 void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
-    updateBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys) {
+    updateBulk(KeyT* KeysDevPtr,
+               ValueT* ValuesDevPtr,
+               uint32_t NumberOfKeys,
+               FilterMapTy* FilterMaps = nullptr) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  update_keys<KeyT, ValueT, AllocPolicy, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
-      KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
+  update_keys<KeyT, ValueT, AllocPolicy, FilterMapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
+      KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt, FilterMaps);
 }
 
-template <typename FilterTy, typename MapTy>
+template <typename FilterTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
 void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
-    upsertBulk(KeyT* KeysDevPtr, ValueT* ValuesDevPtr, uint32_t NumberOfKeys) {
+    upsertBulk(KeyT* KeysDevPtr,
+               ValueT* ValuesDevPtr,
+               uint32_t NumberOfKeys,
+               FilterTy* Filters = nullptr) {
   uint32_t NumberOfBlocks = (NumberOfKeys, BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
-  upsert_keys<KeyT, ValueT, AllocPolicy, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
-      KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt);
+  upsert_keys<KeyT, ValueT, AllocPolicy, FilterTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
+      KeysDevPtr, ValuesDevPtr, NumberOfKeys, SlabHashCtxt, Filters);
 }
 
 template <typename KeyT, typename ValueT, typename AllocPolicy>

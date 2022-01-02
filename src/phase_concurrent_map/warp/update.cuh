@@ -17,17 +17,17 @@
 #ifndef PCMAP_HASH_CTXT_UPDATE_H_
 #define PCMAP_HASH_CTXT_UPDATE_H_
 
-template <typename FilterTy, typename MapTy>
+template <typename FilterMapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
-__device__ __forceinline__
-    typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value>::type
-    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
-        updatePair(bool& ToBeUpdated,
-                   const uint32_t& LaneID,
-                   const KeyT& TheKey,
-                   const ValueT& TheValue,
-                   const uint32_t BucketID,
-                   AllocatorContext& TheAllocatorContext) {
+__device__ __forceinline__ void
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    updatePair(bool& ToBeUpdated,
+               const uint32_t& LaneID,
+               const KeyT& TheKey,
+               const ValueT& TheValue,
+               const uint32_t BucketID,
+               typename AllocPolicy::AllocatorContext& TheAllocatorContext,
+               FilterMapTy* FilterMap) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -79,16 +79,17 @@ __device__ __forceinline__
 
         if (atomicCAS(MutexPtr, EMPTY_KEY, 0) == EMPTY_KEY) {
           uint32_t Key = *KeyPtr;
-          uint32_t Value = *ValuePtr;
+          uint32_t CurrentSlabValue = *ValuePtr;
 
           if (Key ==
               *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey)))) {
-            FilterTy F{};
-            MapTy M{Value};
+            ValueT NewValue = (FilterMap != nullptr)
+                                  ? (*FilterMap)(CurrentSlabValue, TheValue)
+                                  : FilterMapTy()(CurrentSlabValue, TheValue);
 
-            if (F(Value))
+            if (NewValue != CurrentSlabValue)
               *ValuePtr =
-                  *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheValue)));
+                  *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&NewValue)));
 
             ToBeUpdated = false;
           }
@@ -99,18 +100,17 @@ __device__ __forceinline__
   }
 }
 
-template <typename FilterTy, typename MapTy>
+template <typename FilterTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
-__device__ __forceinline__
-    typename std::enable_if<FilterCheck<FilterTy>::value && MapCheck<MapTy>::value,
-                            UpdateStatusKind>::type
-    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
-        upsertPair(bool& ToBeUpserted,
-                   const uint32_t& LaneID,
-                   const KeyT& TheKey,
-                   const ValueT& TheValue,
-                   const uint32_t BucketID,
-                   AllocatorContext& TheAllocatorContext) {
+__device__ __forceinline__ UpsertStatusKind
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
+    upsertPair(bool& ToBeUpserted,
+               const uint32_t& LaneID,
+               const KeyT& TheKey,
+               const ValueT& TheValue,
+               const uint32_t BucketID,
+               typename AllocPolicy::AllocatorContext& TheAllocatorContext,
+               FilterTy* Filter) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
@@ -221,14 +221,15 @@ __device__ __forceinline__
 
         if (atomicCAS(MutexPtr, EMPTY_KEY, 0) == EMPTY_KEY) {
           uint32_t Key = *KeyPtr;
-          uint32_t Value = *ValuePtr;
+          uint32_t CurrentSlabValue = *ValuePtr;
 
           if (Key ==
               *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey)))) {
-            FilterTy F{};
-            MapTy M{Value};
+            bool FilterStatus = (Filter != nullptr)
+                                    ? (*Filter)(CurrentSlabValue, TheValue)
+                                    : FilterTy()(CurrentSlabValue, TheValue);
 
-            if (F(Value)) {
+            if (FilterStatus) {
               *ValuePtr =
                   *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheValue)));
               UpsertStatus = USK_UPDATE;
