@@ -106,29 +106,6 @@ struct __align__(32) PhaseConcurrentValueSlab {
  */
 enum class SlabHashTypeT { ConcurrentMap, ConcurrentSet, PhaseConcurrentMap };
 
-template <uint32_t LogNumMemoryBlocks, uint32_t NumSuperBlocks, uint32_t NumReplicas = 1u>
-struct LightAllocatorPolicy {
-  static constexpr uint32_t LogNumberOfMemoryBlocks = LogNumMemoryBlocks;
-  static constexpr uint32_t NumberOfSuperBlocks = NumSuperBlocks;
-  static constexpr uint32_t NumberOfReplicas = NumReplicas;
-
-  using DynamicAllocatorT =
-      SlabAllocLight<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
-  using AllocatorContextT =
-      SlabAllocLightContext<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
-};
-
-template <uint32_t LogNumMemoryBlocks, uint32_t NumSuperBlocks, uint32_t NumReplicas = 1u>
-struct FullAllocatorPolicy {
-  static constexpr uint32_t LogNumberOfMemoryBlocks = LogNumMemoryBlocks;
-  static constexpr uint32_t NumberOfSuperBlocks = NumSuperBlocks;
-  static constexpr uint32_t NumberOfReplicas = NumReplicas;
-
-  using DynamicAllocatorT = SlabAlloc<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
-  using AllocatorContextT =
-      SlabAllocLight<LogNumMemoryBlocks, NumSuperBlocks, NumReplicas>;
-};
-
 template <typename KeyT, typename ValueT>
 class ConcurrentMapT {
  public:
