@@ -31,6 +31,7 @@
 #include "concurrent_map/cmap_class.cuh"
 #include "concurrent_set/cset_class.cuh"
 #include "phase_concurrent_map/pcmap_class.cuh"
+#include "slab_hash_policies.cuh"
 #include "slab_iterator.cuh"
 
 // warp implementations of member functions:
