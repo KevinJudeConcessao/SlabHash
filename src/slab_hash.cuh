@@ -63,7 +63,6 @@
 #include "phase_concurrent_map/device/build.cuh"
 #include "phase_concurrent_map/device/concurrent_kernel.cuh"
 #include "phase_concurrent_map/device/delete_kernel.cuh"
-#include "phase_concurrent_map/device/misc_kernels.cuh"
 #include "phase_concurrent_map/device/search_kernels.cuh"
 #include "phase_concurrent_map/device/count_kernel.cuh"
 #include "phase_concurrent_map/device/update_kernels.cuh"
