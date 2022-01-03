@@ -26,7 +26,6 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                const KeyT& TheKey,
                const ValueT& TheValue,
                const uint32_t BucketID,
-               typename AllocPolicy::AllocatorContext& TheAllocatorContext,
                FilterMapTy* FilterMap) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 

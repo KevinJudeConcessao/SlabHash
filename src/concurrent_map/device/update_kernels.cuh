@@ -30,10 +30,6 @@ __global__ __forceinline__ void update_keys(
   if ((ThreadID - LaneID) >= NumberOfKeys)
     return;
 
-  typename AllocPolicy::AllocatorContextT TheAllocatorContext(
-      SlabHashCtxt.getAllocatorContext());
-  TheAllocatorContext.initAllocator(ThreadID, LaneID);
-
   KeyT TheKey{};
   ValueT TheValue{};
   uint32_t TheBucket = 0;
@@ -52,7 +48,6 @@ __global__ __forceinline__ void update_keys(
       TheKey,
       TheValue,
       TheBucket,
-      TheAllocatorContext,
       (FilterMaps != nullptr) ? (FilterMaps + ThreadID) : nullptr);
 }
 

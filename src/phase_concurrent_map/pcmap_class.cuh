@@ -117,7 +117,6 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
       const KeyT& TheKey,
       const Value& TheValue,
       const uint32_t BucketID,
-      typename AllocPolicy::AllocatorContextT& TheAllocatorContext,
       FilterMapTy* FilterMaps = nullptr);
 
   template <typename FilterTy>

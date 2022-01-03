@@ -25,7 +25,6 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upd
     const KeyT& TheKey,
     const ValueT& TheValue,
     const uint32_t BucketID,
-    typename AllocPolicy::AllocatorContextT& LocalAllocatorCtxt,
     FilterMapTy* FilterMap) {
   using SlabHashT = ConcurrentMapT<KeyT, ValueT>;
 

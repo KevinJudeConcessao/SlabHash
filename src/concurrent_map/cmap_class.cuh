@@ -114,7 +114,6 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
                   const KeyT& myKey,
                   const ValueT& myValue,
                   const uint32_t bucket_id,
-                  typename AllocPolicy::AllocatorContextT& local_allocator_context,
                   FilterMapTy* FilterMaps = nullptr);
 
   // threads in a warp cooperate with each other to insert a new key-value pair into
