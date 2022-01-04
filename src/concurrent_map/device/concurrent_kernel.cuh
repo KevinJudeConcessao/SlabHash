@@ -16,19 +16,15 @@
 
 #pragma once
 
-template <typename KeyT,
-          typename ValueT,
-          typename AllocPolicy,
-          typename FilterT = AlwaysTrueFilter,
-          typename MapT = IdentityMap>
-__global__
-    typename std::enable_if<MapCheck<MapT>::value && FilterCheck<FilterT>::value>::type
-    batched_operations(
-        uint32_t* d_operations,
-        uint32_t* d_results,
-        uint32_t num_operations,
-        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>
-            slab_hash) {
+/* TODO: Reimplement batched operations */
+
+template <typename KeyT, typename ValueT, typename AllocPolicy, typename FilterMapTy>
+__global__ void batched_operations(
+    uint32_t* d_operations,
+    uint32_t* d_results,
+    uint32_t num_operations,
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>
+        slab_hash, FilterMapTy *FilterMaps) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 
@@ -63,13 +59,17 @@ __global__
   // first insertions:
   slab_hash.insertPair(to_insert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
 
+#if 0
+
   // second updates:
-  slab_hash.updatePair<FilterT, MapT>(
-      to_update, laneId, myKey, myValue, myBucket, local_allocator_ctx);
+  slab_hash.updatePair<FilterMapTy>(
+      to_update, laneId, myKey, myValue, myBucket, local_allocator_ctx, FilterMaps);
 
   // third upserts
-  slab_hash.upsertPair<FilterT, MapT>(
-      to_upsert, laneId, myKey, myValue, myBucket, local_allocator_ctx);
+  slab_hash.upsertPair<FilterMapTy>(
+      to_upsert, laneId, myKey, myValue, myBucket, local_allocator_ctx, FilterMaps);
+
+#endif
 
   // fourth deletions:
   slab_hash.deleteKey(to_delete, laneId, myKey, myBucket);

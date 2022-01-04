@@ -21,7 +21,7 @@ template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ bool
 GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
     deleteKey(bool& ToBeDeleted,
-              const uint32_t LaneID,
+              const uint32_t& LaneID,
               const KeyT& TheKey,
               const uint32_t BucketID) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
@@ -35,11 +35,10 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
     CurrentSlabPtr = IsHeadSlab ? SlabHashT::A_INDEX_POINTER : CurrentSlabPtr;
 
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
-    uint32_t SourceBucket = __ballot_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
-    uint32_t* DataPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
-                            ? getPointerFromBucket(SourceBucket, LaneID)
-                            : getPointerFromSlab(CurrentSlabPtr, LaneID);
-    uint32_t Data = *DataPtr;
+    uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
+    uint32_t FoundKey = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                         ? *getPointerFromBucket(SourceBucket, LaneID)
+                         : *getPointerFromSlab(CurrentSlabPtr, LaneID);
     uint32_t ReqKey =
         __shfl_sync(0xFFFFFFFF,
                     *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey)),
@@ -47,31 +46,36 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                     32);
 
     uint32_t IsFound =
-        __ballot_sync(0xFFFFFFFF, Data == ReqKey) & SlabHashT::REGULAR_NODE_KEY_MASK;
+        __ballot_sync(0xFFFFFFFF, FoundKey == ReqKey) & SlabHashT::REGULAR_NODE_KEY_MASK;
 
     if (IsFound) {
       int CandidateLane = __ffs(IsFound) - 1;
       uint32_t ValuesSlabVAddr =
-          __shfl_sync(0xFFFFFFFF, Data, SlabHashT::VALUES_PTR_LANE, 32);
+          __shfl_sync(0xFFFFFFFF, FoundKey, SlabHashT::VALUES_PTR_LANE, 32);
       uint32_t MutexSlabVAddr =
-          __shfl_sync(0xFFFFFFFF, Data, SlabHashT::MUTEX_PTR_LANE, 32);
+          __shfl_sync(0xFFFFFFFF, FoundKey, SlabHashT::MUTEX_PTR_LANE, 32);
 
       if (LaneID == SourceLane) {
-        uint32_t* ValuePtr = getPointerFromSlab(ValueSlabVAddr, CandidateLane);
+        uint32_t* DataPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                                ? getPointerFromBucket(SourceBucket, CandidateLane)
+                                : getPointerFromSlab(CurrentSlabPtr, CandidateLane);
+        uint32_t* ValuePtr = getPointerFromSlab(ValuesSlabVAddr, CandidateLane);
         uint32_t* MutexPtr = getPointerFromSlab(MutexSlabVAddr, CandidateLane);
 
         if (atomicCAS(MutexPtr, EMPTY_KEY, 0) == EMPTY_KEY) {
-          uint32_t Key = *Data;
-          if (Key == *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&ReqKey))) {
-            *Data = TOMBSTONE_KEY;
-            *Value = TOMBSTONE_VALUE;
+          uint32_t Key = *DataPtr;
+          if (Key == *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey))) {
+            *DataPtr = TOMBSTONE_KEY;
+            *ValuePtr = TOMBSTONE_VALUE;
             DeletionStatus = true;
             ToBeDeleted = false;
           }
+
+          atomicExch(MutexPtr, EMPTY_KEY);
         }
       }
     } else {
-      uint32_t NextSlabPtr = __shfl_sync(0xFFFFFFFF, Data, SlabHashT::NEXT_PTR_LANE, 32);
+      uint32_t NextSlabPtr = __shfl_sync(0xFFFFFFFF, FoundKey, SlabHashT::NEXT_PTR_LANE, 32);
 
       if (NextSlabPtr == SlabHashT::EMPTY_INDEX_POINTER) {
         if (SourceLane == LaneID) {

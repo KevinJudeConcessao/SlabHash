@@ -44,7 +44,7 @@ __global__ void search_table(
   SlabHashCtxt.searchKey(ToSearch, LaneID, TheKey, TheResult, TheBucket);
 
   if (ThreadID < NumberOfQueries)
-    KeyCounts[ThreadID] = TheResult;
+    Results[ThreadID] = TheResult;
 }
 
 template <typename KeyT, typename ValueT, typename AllocPolicy>
@@ -74,7 +74,7 @@ __global__ void search_table_bulk(
   SlabHashCtxt.searchKey(ToSearch, LaneID, TheKey, TheResult, TheBucket);
 
   if (ThreadID < NumberOfQueries)
-    KeyCounts[ThreadID] = TheResult;
+    Results[ThreadID] = TheResult;
 }
 
 #endif  // PCMAP_SEARCH_KERNELS_H_

@@ -51,8 +51,8 @@ template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void bucket_count_kernel(
     GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
         SlabHashCtxt,
-    uint32_t* KeysCount,
-    uint32_t* SlabsCount,
+    uint32_t* KeyCounts,
+    uint32_t* SlabCounts,
     uint32_t NumberOfBuckets) {
   /* Assign one warp for each bucket */
 
@@ -69,13 +69,13 @@ __global__ void bucket_count_kernel(
   uint32_t SlabCount = 1;
   uint32_t CurrentSlabPtr = SlabHashTy::A_INDEX_POINTER;
 
-  uint32_t LaneKey = *getPointerFromBucket(BlockWarpID, LaneID);
+  uint32_t LaneKey = *SlabHashCtxt.getPointerFromBucket(BlockWarpID, LaneID);
   KeyCount = __popc(__ballot_sync(0xFFFFFFFF, LaneKey != EMPTY_KEY) &
                     SlabHashTy::REGULAR_NODE_KEY_MASK);
   CurrentSlabPtr = __shfl_sync(0xFFFFFFFF, LaneKey, SlabHashTy::NEXT_PTR_LANE, 32);
 
   while (CurrentSlabPtr != SlabHashTy::EMPTY_INDEX_POINTER) {
-    LaneKey = *getPointerFromSlab(CurrentSlabPtr, LaneID);
+    LaneKey = *SlabHashCtxt.getPointerFromSlab(CurrentSlabPtr, LaneID);
 
     KeyCount += __popc(__ballot_sync(0xFFFFFFFF, LaneKey != EMPTY_KEY) &
                        SlabHashTy::REGULAR_NODE_KEY_MASK);
@@ -86,7 +86,7 @@ __global__ void bucket_count_kernel(
 
   if (LaneID == 0) {
     KeyCounts[BlockWarpID] = KeyCount;
-    SlabsCount[BlockWarpID] = SlabCount;
+    SlabCounts[BlockWarpID] = SlabCount;
   }
 }
 

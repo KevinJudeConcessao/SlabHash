@@ -17,8 +17,8 @@
 #ifndef PCMAP_HASH_CTXT_UPDATE_H_
 #define PCMAP_HASH_CTXT_UPDATE_H_
 
-template <typename FilterMapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
+template <typename FilterMapTy>
 __device__ __forceinline__ void
 GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
     updatePair(bool& ToBeUpdated,
@@ -44,14 +44,13 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                     SourceLane,
                     32);
 
-    uint32_t* PtrData = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
-                            ? getPointerFromBucket(SourceBucket, LaneID)
-                            : getPointerFromSlab(CurrentSlabPtr, LaneID);
-    uint32_t Data = *PtrData;
+    uint32_t Data = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                        ? *getPointerFromBucket(SourceBucket, LaneID)
+                        : *getPointerFromSlab(CurrentSlabPtr, LaneID);
 
-    int FoundLane =
-        (__ballot_sync(0xFFFFFFFF, Data == ReqKey) & SlabHashT::REGULAR_NODE_KEY_MASK) -
-        1;
+    int FoundLane = __ffs(__ballot_sync(0xFFFFFFFF, Data == ReqKey) &
+                          SlabHashT::REGULAR_NODE_KEY_MASK) -
+                    1;
 
     if (FoundLane < 0) {
       uint32_t NextSlabPtr = __shfl_sync(0xFFFFFFFF, Data, SlabHashT::NEXT_PTR_LANE, 32);
@@ -99,8 +98,8 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
   }
 }
 
-template <typename FilterTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
+template <typename FilterTy>
 __device__ __forceinline__ UpsertStatusKind
 GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>::
     upsertPair(bool& ToBeUpserted,
@@ -108,7 +107,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                const KeyT& TheKey,
                const ValueT& TheValue,
                const uint32_t BucketID,
-               typename AllocPolicy::AllocatorContext& TheAllocatorContext,
+               typename AllocPolicy::AllocatorContextT& TheAllocatorContext,
                FilterTy* Filter) {
   using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
@@ -128,10 +127,9 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                     SourceLane,
                     32);
 
-    uint32_t* PtrData = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
-                            ? getPointerFromBucket(SourceBucket, LaneID)
-                            : getPointerFromSlab(CurrentSlabPtr, LaneID);
-    uint32_t Data = *PtrData;
+    uint32_t Data = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                        ? *getPointerFromBucket(SourceBucket, LaneID)
+                        : *getPointerFromSlab(CurrentSlabPtr, LaneID);
 
     int FoundLane = __ffs(__ballot_sync(0xFFFFFFFF, Data == ReqKey) &
                           SlabHashT::REGULAR_NODE_KEY_MASK) -
@@ -151,19 +149,20 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
           if (LaneID == SlabHashT::MUTEX_PTR_LANE) {
             uint32_t* MutexLanePtr =
                 getPointerFromSlab(NewKeySlabVAddr, SlabHashT::MUTEX_PTR_LANE);
-            *MutexPtrLane = NewMutexSlabVAddr;
+            *MutexLanePtr = NewMutexSlabVAddr;
           }
 
           if (LaneID == SlabHashT::VALUES_PTR_LANE) {
             uint32_t* ValuesLanePtr =
                 getPointerFromSlab(NewKeySlabVAddr, SlabHashT::VALUES_PTR_LANE);
-            *ValuesPtrLane = NewValueSlabVAddr;
+            *ValuesLanePtr = NewValueSlabVAddr;
           }
 
           if (LaneID == SlabHashT::NEXT_PTR_LANE) {
             uint32_t* NextLanePtr =
-                IsHeadSlab ? getPointerFromBucket(SourceBucket, SlabHashT::NEXT_PTR_LANE)
-                           : getPointerFromSlab(CurrentSlabPtr, SlabHashT::NEXT_PTR_LANE);
+                (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                    ? getPointerFromBucket(SourceBucket, SlabHashT::NEXT_PTR_LANE)
+                    : getPointerFromSlab(CurrentSlabPtr, SlabHashT::NEXT_PTR_LANE);
 
             uint32_t OldVAddr =
                 atomicCAS(NextLanePtr, SlabHashT::EMPTY_INDEX_POINTER, NewKeySlabVAddr);

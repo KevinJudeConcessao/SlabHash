@@ -18,7 +18,7 @@
 #define PCMAP_UPDATE_KERNELS_H_
 
 template <typename KeyT, typename ValueT, typename AllocPolicy, typename FilterMapTy>
-__global__ __forceinline__ void update_keys(
+__global__ void update_keys(
     KeyT* TheKeys,
     ValueT* TheValues,
     uint32_t NumberOfKeys,
@@ -43,7 +43,7 @@ __global__ __forceinline__ void update_keys(
     ToUpdate = true;
   }
 
-  SlabHashCtxt.updatePair<FilterMapTy>(
+  SlabHashCtxt.updatePair(
       ToUpdate,
       LaneID,
       TheKey,
@@ -52,8 +52,8 @@ __global__ __forceinline__ void update_keys(
       (FilterMaps != nullptr) ? (FilterMaps + ThreadID) : nullptr);
 }
 
-template <typename KeyT, typename ValueT, typename AllocPolicy, typename FilterMapTy>
-__global__ __forceinline__ void upsert_keys(
+template <typename KeyT, typename ValueT, typename AllocPolicy, typename FilterTy>
+__global__ void upsert_keys(
     KeyT* TheKeys,
     ValueT* TheValues,
     uint32_t NumberOfKeys,
@@ -82,8 +82,8 @@ __global__ __forceinline__ void upsert_keys(
     ToUpsert = true;
   }
 
-  SlabHashCtxt.upsertPair<FilterTy>(
-      ToUpdate,
+  SlabHashCtxt.upsertPair(
+      ToUpsert,
       LaneID,
       TheKey,
       TheValue,

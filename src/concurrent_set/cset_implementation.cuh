@@ -45,7 +45,7 @@ void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
 template <typename KeyT, typename ValueT, typename AllocPolicy>
 void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
     deleteIndividual(KeyT* d_query, uint32_t num_queries) {
-  CHECK_CUDA_ERROR(cudaSetDevice(device_idx));
+  CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
   const uint32_t num_blocks = (num_queries + BLOCKSIZE_ - 1) / BLOCKSIZE_;
   cset::delete_table_keys<KeyT, AllocPolicy>
       <<<num_blocks, BLOCKSIZE_>>>(d_query, num_queries, gpu_context_);
@@ -71,10 +71,9 @@ template <typename KeyT, typename ValueT, typename AllocPolicy>
 double
 GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::computeLoadFactor(
     int = 0) {
-  auto FreeDeviceMem = [](const void* Ptr) -> void { CHECK_ERROR(cudaFree(Ptr)); }
+  auto FreeDeviceMem = [](void* Ptr) -> void { CHECK_ERROR(cudaFree(Ptr)); };
 
-  std::unique_ptr<uint32_t>
-      BucketKeyCount{new uint32_t[num_buckets_]};
+  std::unique_ptr<uint32_t> BucketKeyCount{new uint32_t[num_buckets_]};
   std::unique_ptr<uint32_t> BucketSlabCount{new uint32_t[num_buckets_]};
 
   uint32_t* _BucketKeyCountDev;
@@ -96,7 +95,7 @@ GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::computeLoa
   uint32_t NumberOfThreadBlocks =
       (num_buckets_ * WARP_WIDTH_ + BLOCKSIZE_ - 1) / BLOCKSIZE_;
   bucket_count_kernel<KeyT, ValueT, AllocPolicy><<<NumberOfThreadBlocks, BLOCKSIZE_>>>(
-      SlabHashCtxt, BucketKeyCountDev.get(), BucketSlabCountDev.get(), num_buckets_);
+      gpu_context_, BucketKeyCountDev.get(), BucketSlabCountDev.get(), num_buckets_);
 
   CHECK_ERROR(cudaMemcpy(BucketKeyCount.get(),
                          BucketKeyCountDev.get(),

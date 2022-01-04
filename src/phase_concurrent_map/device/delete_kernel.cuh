@@ -26,7 +26,7 @@ __global__ void delete_table_keys(
   uint32_t ThreadID = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t LaneID = threadIdx.x & 0x1F;
 
-  if ((ThreadID - LaneID) >= NumberOfQueries)
+  if ((ThreadID - LaneID) >= NumberOfKeys)
     return;
 
   KeyT TheKey{};

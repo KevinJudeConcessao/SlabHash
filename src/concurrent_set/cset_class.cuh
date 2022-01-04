@@ -106,6 +106,11 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
                                                 const KeyT& myKey,
                                                 const uint32_t bucket_id);
 
+  __device__ __forceinline__ bool deleteKey(bool& ToDelete,
+                                            const uint32_t& LaneID,
+                                            KeyT& TheKey,
+                                            const uint32_t BucketID);
+
   __device__ __forceinline__ uint32_t* getPointerFromSlab(
       const SlabAddressT& slab_address,
       const uint32_t laneId) {

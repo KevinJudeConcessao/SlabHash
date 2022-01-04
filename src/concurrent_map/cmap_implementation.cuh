@@ -157,30 +157,30 @@ GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::computeLoa
   return load_factor;
 }
 
-template <typename FilterMapTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
+template <typename FilterMapTy>
 void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::updateBulk(
     KeyT* TheKeys,
     ValueT* TheValues,
     uint32_t NumberOfKeys,
-    FilterMapTy* FilterMaps = nullptr) {
+    FilterMapTy* FilterMaps) {
   uint32_t NumberOfBlocks = (NumberOfKeys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
-  update_keys<KeyT, ValueT, AllocPolicy, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  update_keys<KeyT, ValueT, AllocPolicy, FilterMapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       TheKeys, TheValues, NumberOfKeys, gpu_context_, FilterMaps);
 }
 
-template <typename FilterTy>
 template <typename KeyT, typename ValueT, typename AllocPolicy>
+template <typename FilterTy>
 void GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::upsertBulk(
     KeyT* TheKeys,
     ValueT* TheValues,
     uint32_t NumberOfKeys,
-    FilterTy* Filters = nullptr) {
+    FilterTy* Filters) {
   uint32_t NumberOfBlocks = (NumberOfKeys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
   CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
-  upsert_keys<KeyT, ValueT, AllocPolicy, FilterTy, MapTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
+  upsert_keys<KeyT, ValueT, AllocPolicy, FilterTy><<<NumberOfBlocks, BLOCKSIZE_>>>(
       TheKeys, TheValues, NumberOfKeys, gpu_context_, Filters);
 }

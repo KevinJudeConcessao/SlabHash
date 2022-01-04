@@ -29,7 +29,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
   static constexpr uint32_t PrimeDivisor = 4294967291u;
   static constexpr uint32_t WarpWidth = 32;
 
-  __host__ __device__ GpuSlabHashContext() = default;
+  __host__ __device__ GpuSlabHashContext() {}
 
   __host__ __device__ GpuSlabHashContext(
       const GpuSlabHashContext<KeyT,
@@ -42,7 +42,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
       , BucketHeadSlabs{TheContext.BucketHeadSlabs}
       , TheAllocatorContext{TheContext.TheAllocatorContext} {}
 
-  __host__ __device__ ~GpuSlabHashContext() = default;
+  __host__ __device__ ~GpuSlabHashContext() {}
 
   static constexpr size_t getSlabUnitSize() {
     return sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT);
@@ -97,7 +97,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
   __device__ __forceinline__ void insertPair(
       bool& ToBeInserted,
       const uint32_t& LaneID,
-      const Keyt& TheKey,
+      const KeyT& TheKey,
       const ValueT& TheValue,
       const uint32_t BucketID,
       typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
@@ -111,20 +111,19 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
       typename AllocPolicy::AllocatorContextT& TheAllocatorContext);
 
   template <typename FilterMapTy>
-  __device__ __forceinline__ void updatePair(
-      bool& ToBeUpdated,
-      const uint32_t& LaneID,
-      const KeyT& TheKey,
-      const Value& TheValue,
-      const uint32_t BucketID,
-      FilterMapTy* FilterMaps = nullptr);
+  __device__ __forceinline__ void updatePair(bool& ToBeUpdated,
+                                             const uint32_t& LaneID,
+                                             const KeyT& TheKey,
+                                             const ValueT& TheValue,
+                                             const uint32_t BucketID,
+                                             FilterMapTy* FilterMaps = nullptr);
 
   template <typename FilterTy>
-  __device__ __forceinline__ void upsertPair(
+  __device__ __forceinline__ UpsertStatusKind upsertPair(
       bool& ToBeUpserted,
       const uint32_t& LaneID,
       const KeyT& TheKey,
-      const Value& TheValue,
+      const ValueT& TheValue,
       const uint32_t BucketID,
       typename AllocPolicy::AllocatorContextT& TheAllocatorContext,
       FilterTy* Filters = nullptr);
@@ -146,7 +145,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
                                            uint32_t& TheCount,
                                            const uint32_t BucketID);
 
-  __device__ __forceinline__ void deleteKey(bool& ToBeDeleted,
+  __device__ __forceinline__ bool deleteKey(bool& ToBeDeleted,
                                             const uint32_t& LaneID,
                                             const KeyT& TheKey,
                                             const uint32_t BucketID);
@@ -260,10 +259,6 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
            "Size of slab on PhaseConcurrentMap should be 128 bytes");
 
     int DeviceCount = 0;
-    size_t SlabSize = sizefof CUDA_CHECK_ERROR(cudaGetDeviceCount(&DeviceCount));
-    assert(DeviceIndex < DeviceCount);
-
-    CUDA_CHECK_ERROR(cudaSetDevice(DeviceIndex));
 
     /* TODO: Finish Implementation:
      * - Allocate head slabs

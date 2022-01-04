@@ -25,14 +25,14 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
              const KeyT& TheKey,
              uint32_t& TheCount,
              const uint32_t BucketID) {
-  using SlabHashTypeT = PhaseConcurrentMapT<KeyT, ValueT>;
+  using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
   uint32_t CurrentSlabPtr = SlabHashT::A_INDEX_POINTER;
   bool IsHeadSlab = true;
 
   while ((WorkQueue = __ballot_sync(0xFFFFFFFF, ToBeSearched)) != 0) {
-    CurrentSlabPtr = IsHeadSlab ? A_INDEX_POINTER : CurrentSlabPtr;
+    CurrentSlabPtr = IsHeadSlab ? SlabHashT::A_INDEX_POINTER : CurrentSlabPtr;
 
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
     uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
@@ -41,7 +41,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                     *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey)),
                     SourceLane,
                     32);
-    uint32_t Data = (CurrentSlabPtr == A_INDEX_POINTER)
+    uint32_t Data = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
                         ? *getPointerFromBucket(SourceBucket, LaneID)
                         : *getPointerFromSlab(CurrentSlabPtr, LaneID);
 
@@ -51,8 +51,8 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
     if (LaneID == SourceLane)
       TheCount = TheCount + KeyCountInWarp;
 
-    uint32_t NextPtr = __shfl_sync(0xFFFFFFFF, Data, SlabHashTypeT::NEXT_PTR_LANE, 32);
-    if (NextPtr == SlabHashTypeT::EMPTY_INDEX_POINTER) {
+    uint32_t NextPtr = __shfl_sync(0xFFFFFFFF, Data, SlabHashT::NEXT_PTR_LANE, 32);
+    if (NextPtr == SlabHashT::EMPTY_INDEX_POINTER) {
       if (LaneID == SourceLane)
         ToBeSearched = false;
     } else {

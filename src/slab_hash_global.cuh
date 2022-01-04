@@ -91,7 +91,7 @@ using PhaseConcurrentSlab = PhaseConcurrentKeySlab<KeyT, ValueT>;
 
 template <typename KeyT, typename ValueT>
 struct __align__(32) PhaseConcurrentValueSlab {
-  ValueT Values[PhaseConcurrentKeySlab::NUM_ELEMENTS_PER_SLAB];
+  ValueT Values[PhaseConcurrentSlab<KeyT, ValueT>::NUM_ELEMENTS_PER_SLAB];
   uint32_t _0[1];
   uint32_t _1[1];
   uint32_t _2[1];
@@ -199,7 +199,7 @@ template <typename ValueTy>
 struct AlwaysTrueFilter {
   template <typename... ContextArgs>
   __device__ __host__ AlwaysTrueFilter(ContextArgs&&... TheArguments) {}
-  __device__ __host__ AlwaysTrueFilter(const AlwaysTrueFilter&) = default;
+  __device__ __host__ AlwaysTrueFilter(const AlwaysTrueFilter&) {}
 
   __device__ bool operator()(const ValueTy&) const { return true; }
 };
@@ -210,12 +210,12 @@ struct AlwaysTrueFilter {
 
 template <typename ValueTy>
 struct IdentityMap {
-  using ResultType = ValueTy;
+  using ResultTy = ValueTy;
   template <typename... ContextArgs>
   __device__ __host__ IdentityMap(ContextArgs&&... TheArguments) {}
-  __device__ __host__ IdentityMap(const IdentityMap&) = default;
+  __device__ __host__ IdentityMap(const IdentityMap&) {}
 
-  __device__ ResultTy operator(const ValueTy& CurrentValue)() { return CurrentValue; }
+  __device__ ResultTy operator()(const ValueTy& CurrentValue) { return CurrentValue; }
 };
 
 /*
@@ -224,8 +224,8 @@ struct IdentityMap {
 
 template <typename ValueT>
 struct AlwaysTrueFilterStateless {
-  __device__ __host__ AlwaysTrueFilter() = default;
-  __device__ __host__ AlwaysTrueFilter(const AlwaysTrueFilter&) = default;
+  __device__ __host__ AlwaysTrueFilterStateless() {}
+  __device__ __host__ AlwaysTrueFilterStateless(const AlwaysTrueFilterStateless&) {}
 
   __device__ bool operator()(const ValueT&) { return true; }
 };
@@ -236,8 +236,8 @@ struct AlwaysTrueFilterStateless {
 
 template <typename ValueT>
 struct IdentityMapStateless {
-  __device__ __host__ IdentityMap() = default;
-  __device__ __host__ IdentityMap(const IdentityMap&) = default;
+  __device__ __host__ IdentityMapStateless() {}
+  __device__ __host__ IdentityMapStateless(const IdentityMapStateless&) {}
 
   __device__ const ValueT& operator()(const ValueT& TheValue) { return TheValue; }
 };
@@ -246,7 +246,7 @@ template <typename ValueT>
 struct IdentityFilterMap {
   template <typename... ContextArgs>
   __device__ __host__ IdentityFilterMap(ContextArgs&&... TheArguments) {}
-  __device__ __host__ IdentityFilterMap(const IdentityFilterMap&) = default;
+  __device__ __host__ IdentityFilterMap(const IdentityFilterMap&) {}
 
   __device__ const ValueT& operator()(const ValueT& TheValue) { return TheValue; }
 };

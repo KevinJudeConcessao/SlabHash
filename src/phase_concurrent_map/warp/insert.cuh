@@ -25,8 +25,8 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                const KeyT& TheKey,
                const ValueT& TheValue,
                const uint32_t BucketID,
-               AllocatorContext& TheAllocatorContext) {
-  using SlabHashT = PhaseConcurrentMap<KeyT, ValueT>;
+               typename AllocPolicy::AllocatorContextT& TheAllocatorContext) {
+  using SlabHashT = PhaseConcurrentMapT<KeyT, ValueT>;
 
   uint32_t WorkQueue = 0;
   uint32_t CurrentSlabPtr = SlabHashT::A_INDEX_POINTER;
@@ -37,10 +37,9 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
 
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
     uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
-    uint32_t* DataPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
-                            ? getPointerFromBucket(SourceBucket, LaneID)
-                            : getPointerFromSlab(CurrentSlabPtr, LaneID);
-    uint32_t Data = *DataPtr;
+    uint32_t Data = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                        ? *getPointerFromBucket(SourceBucket, LaneID)
+                        : *getPointerFromSlab(CurrentSlabPtr, LaneID);
 
     uint32_t EmptyLanes =
         __ballot_sync(0xFFFFFFFF, Data == EMPTY_KEY) & SlabHashT::REGULAR_NODE_KEY_MASK;
@@ -55,13 +54,13 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
         if (LaneID == SlabHashT::MUTEX_PTR_LANE) {
           uint32_t* MutexLanePtr =
               getPointerFromSlab(NewKeySlabVAddr, SlabHashT::MUTEX_PTR_LANE);
-          *MutexPtrLane = NewMutexSlabVAddr;
+          *MutexLanePtr = NewMutexSlabVAddr;
         }
 
         if (LaneID == SlabHashT::VALUES_PTR_LANE) {
           uint32_t* ValuesLanePtr =
               getPointerFromSlab(NewKeySlabVAddr, SlabHashT::VALUES_PTR_LANE);
-          *ValuesPtrLane = NewValueSlabVAddr;
+          *ValuesLanePtr = NewValueSlabVAddr;
         }
 
         if (LaneID == SlabHashT::NEXT_PTR_LANE) {
@@ -89,6 +88,8 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
           __shfl_sync(0xFFFFFFFF, Data, SlabHashT::MUTEX_PTR_LANE, 32);
 
       if (SourceLane == LaneID) {
+        uint32_t* DataPtr = IsHeadSlab ? getPointerFromBucket(SourceBucket, InsertLane)
+                                       : getPointerFromSlab(CurrentSlabPtr, InsertLane);
         uint32_t* ValuePtr = getPointerFromSlab(ValueSlabVAddr, InsertLane);
         uint32_t* MutexPtr = getPointerFromSlab(MutexSlabVAddr, InsertLane);
 
@@ -115,7 +116,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
                      const KeyT& TheKey,
                      const ValueT& TheValue,
                      const uint32_t BucketID,
-                     AllocatorContext& TheAllocatorContext) {
+                     typename AllocPolicy::AllocatorContextT& TheAllocatorContext) {
   /* TODO: Finish Implementation
    * TODO: Verify correctness
    */

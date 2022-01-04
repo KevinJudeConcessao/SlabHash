@@ -62,7 +62,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::del
           to_be_deleted = false;
       } else {
         next = next_ptr;
-      }:
+      }
     } else {  // The wanted key found:
       int dest_lane = __ffs(isFound & SlabHashT::REGULAR_NODE_KEY_MASK) - 1;
       if (laneId == src_lane) {

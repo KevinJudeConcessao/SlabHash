@@ -148,12 +148,12 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
 // ========
 template <typename KeyT, typename ValueT, typename AllocPolicy>
 __device__ __forceinline__ bool
-GpuSlabHashContext<Key, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::deleteKey(
-    bool& ToDelete,
+GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::deleteKey(
+    bool& ToBeDeleted,
     const uint32_t& LaneID,
     KeyT& TheKey,
     const uint32_t BucketID) {
-  using SlabHashT = ConcurrentSet<KeyT>;
+  using SlabHashT = ConcurrentSetT<KeyT>;
 
   uint32_t WorkQueue = 0;
   uint32_t CurrentSlabPtr = SlabHashT::A_INDEX_POINTER;
@@ -164,11 +164,11 @@ GpuSlabHashContext<Key, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::dele
     CurrentSlabPtr = IsHeadSlab ? SlabHashT::A_INDEX_POINTER : CurrentSlabPtr;
 
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
-    uint32_t SourceBucket = __ballot_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
-    uint32_t* DataPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
-                            ? getPointerFromBucket(SourceBucket, LaneID)
-                            : getPointerFromSlab(CurrentSlabPtr, LaneID);
-    uint32_t Data = *DataPtr;
+    uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
+    uint32_t Data = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
+                            ? *getPointerFromBucket(SourceBucket, LaneID)
+                            : *getPointerFromSlab(CurrentSlabPtr, LaneID);
+
     uint32_t ReqKey =
         __shfl_sync(0xFFFFFFFF,
                     *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey)),
@@ -182,7 +182,7 @@ GpuSlabHashContext<Key, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::dele
       int CandidateLane = __ffs(IsFound) - 1;
 
       if (LaneID == SourceLane) {
-        uint32_t* DestPtr = (CurrentSlabPtr == = SlabHashT::A_INDEX_POINTER)
+        uint32_t* DestPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
                                 ? getPointerFromBucket(SourceBucket, CandidateLane)
                                 : getPointerFromSlab(CurrentSlabPtr, CandidateLane);
         uint32_t OldKey = atomicExch(DestPtr, TOMBSTONE_KEY);

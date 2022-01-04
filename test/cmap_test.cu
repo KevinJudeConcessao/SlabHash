@@ -31,7 +31,9 @@
 size_t g_gpu_device_idx{0};  // the gpu device to run tests on
 
 TEST(ConcurrentMap, Construction) {
-  gpu_hash_table<uint32_t, uint32_t, SlabHashTypeT::ConcurrentMap> cmap(
+  gpu_hash_table<uint32_t, uint32_t, LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>, SlabHashTypeT::ConcurrentMap> cmap(
       100, 10, g_gpu_device_idx, /*seed = */ 1);
 
   std::vector<uint32_t> h_key{10, 5, 1};
@@ -46,7 +48,9 @@ TEST(BulkBuild, IndividualSearch) {
   const uint32_t num_keys = 137;
   const uint32_t num_buckets = 2;
   // creating the data structures:
-  gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> cmap(
+  gpu_hash_table<KeyT, ValueT, LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>, SlabHashTypeT::ConcurrentMap> cmap(
       num_keys, num_buckets, g_gpu_device_idx, /*seed = */ 1);
 
   // creating key-value pairs:
@@ -92,7 +96,9 @@ TEST(BulkBuild, BulkSearch) {
   const uint32_t num_keys = 137;
   const uint32_t num_buckets = 2;
   // creating the data structures:
-  gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> cmap(
+  gpu_hash_table<KeyT, ValueT, LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>, SlabHashTypeT::ConcurrentMap> cmap(
       num_keys, num_buckets, g_gpu_device_idx, /*seed = */ 1);
 
   // creating key-value pairs:
@@ -171,7 +177,9 @@ TEST(BulkBuild, IndividualCount) {
   }
 
   // creating the data structures:
-  gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> cmap(
+  gpu_hash_table<KeyT, ValueT, LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>, SlabHashTypeT::ConcurrentMap> cmap(
       num_keys, num_buckets, g_gpu_device_idx, /*seed = */ 1);
 
   // building the slab hash, and the host's data structure:
@@ -238,7 +246,9 @@ TEST(UniqueBulkBuild, IndividualCount) {
   }
 
   // creating the data structures:
-  gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> cmap(
+  gpu_hash_table<KeyT, ValueT, LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>, SlabHashTypeT::ConcurrentMap> cmap(
       num_keys, num_buckets, g_gpu_device_idx, /*seed = */ 1);
 
   // building the unique-keys slab hash, and the host's data structure:
@@ -272,7 +282,9 @@ TEST(BulkBuild, IndividualDelete) {
   const uint32_t num_keys = 137;
   const uint32_t num_buckets = 2;
   // creating the data structures:
-  gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> cmap(
+  gpu_hash_table<KeyT, ValueT, LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>, SlabHashTypeT::ConcurrentMap> cmap(
       num_keys, num_buckets, g_gpu_device_idx, /*seed = */ 1);
 
   // creating key-value pairs:

@@ -21,7 +21,7 @@
  * This class acts as a helper class to simplify simulations around different
  * kinds of slab hash implementations
  */
-template <typename KeyT, typename ValueT, SlabHashTypeT SlabHashT>
+template <typename KeyT, typename ValueT, typename AllocPolicy, SlabHashTypeT SlabHashT>
 class gpu_hash_table {
  private:
   uint32_t max_keys_;
@@ -32,10 +32,10 @@ class gpu_hash_table {
 
  public:
   // Slab hash invariant
-  GpuSlabHash<KeyT, ValueT, SlabHashT>* slab_hash_;
+  GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashT>* slab_hash_;
 
   // the dynamic allocator that is being used for slab hash
-  DynamicAllocatorT* dynamic_allocator_;
+  typename AllocPolicy::DynamicAllocatorT* dynamic_allocator_;
 
   uint32_t device_idx_;
 
@@ -80,7 +80,7 @@ class gpu_hash_table {
     dynamic_allocator_ = new DynamicAllocatorT();
 
     // slab hash:
-    slab_hash_ = new GpuSlabHash<KeyT, ValueT, SlabHashT>(
+    slab_hash_ = new GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashT>(
         num_buckets_, dynamic_allocator_, device_idx_, seed_, identity_hash_);
     if (verbose) {
       std::cout << slab_hash_->to_string() << std::endl;
