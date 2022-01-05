@@ -18,13 +18,13 @@
 
 /* TODO: Reimplement batched operations */
 
-template <typename KeyT, typename ValueT, typename AllocPolicy, typename FilterMapTy>
+template <typename KeyT, typename ValueT, typename AllocPolicy>
 __global__ void batched_operations(
     uint32_t* d_operations,
     uint32_t* d_results,
     uint32_t num_operations,
     GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>
-        slab_hash, FilterMapTy *FilterMaps) {
+        slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 

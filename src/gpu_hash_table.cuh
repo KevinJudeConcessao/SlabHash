@@ -77,7 +77,7 @@ class gpu_hash_table {
     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_count_, sizeof(uint32_t) * max_keys_));
 
     // allocate an initialize the allocator:
-    dynamic_allocator_ = new DynamicAllocatorT();
+    dynamic_allocator_ = new typename AllocPolicy::DynamicAllocatorT();
 
     // slab hash:
     slab_hash_ = new GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashT>(

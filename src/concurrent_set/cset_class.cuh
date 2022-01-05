@@ -131,7 +131,8 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
   }
 
   __device__ __forceinline__ SlabAllocAddressT
-  allocateSlab(AllocatorContextT& local_allocator_ctx, const uint32_t& laneId) {
+  allocateSlab(typename AllocPolicy::AllocatorContextT& local_allocator_ctx,
+               const uint32_t& laneId) {
     return local_allocator_ctx.warpAllocate(laneId);
   }
 
