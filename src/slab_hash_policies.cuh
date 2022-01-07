@@ -14,13 +14,13 @@ struct ContainerPolicy {
   using SlabHashContextT = SlabHashContextTy;
 };
 
-template <typename KeyTy, typename ValueTy, typename SlabAllocPolicyTy>
+template <typename KeyTy, typename SlabAllocPolicyTy>
 using ConcurrentSetPolicy = ContainerPolicy<
     KeyTy,
-    ValueTy,
+    void,
     SlabAllocPolicyTy,
-    GpuSlabHash<KeyTy, ValueTy, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
-    GpuSlabHashContext<KeyTy, ValueTy, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>>;
+    GpuSlabHash<KeyTy, void, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
+    GpuSlabHashContext<KeyTy, void, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>>;
 
 template <typename KeyTy, typename ValueTy, typename SlabAllocPolicyTy>
 using ConcurrentMapPolicy = ContainerPolicy<
