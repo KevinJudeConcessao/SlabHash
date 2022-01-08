@@ -19,6 +19,125 @@
 // a forward iterator for the slab hash data structure:
 // currently just specialized for concurrent set
 // TODO implement for other types
+
+template <typename ContainerPolicyT>
+class SlabHashIterator;
+
+template <typename ContainerPolicyT>
+class BucketIterator {
+  typename ContainerPolicyT::SlabHashContextT& SlabHashCtxt;
+  uint32_t BucketId;
+  uint32_t AllocatorAddr;
+  using SlabInfoT = typename ContainerPolicyT::SlabInfoT;
+
+ public:
+  __device__ BucketIterator& operator++() {
+    uint32_t LaneId = threadIdx.x & 0x1F;
+    if (AllocatorAddr == SlabInfoT::EMPTY_INDEX_POINTER)
+      return;
+
+    if (LaneId == SlabInfoT::NEXT_PTR_LANE) {
+      AllocatorAddr = (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
+                          ? *SlabHashCtxt.getPointerFromBucket(BucketId, LaneID)
+                          : *SlabHashCtxt.getPointerFromSlab(AllocatorAddr, LaneID);
+    }
+
+    AllocatorAddr = __shfl_sync(0xFFFFFFFF, AllocatorAddr, SlabInfoT::NEXT_PTR_LANE, 32);
+  }
+
+  __device__ BucketIterator operator++(int) {
+    BucketIterator OldIterator{*this};
+    ++(*this);
+    return OldIterator;
+  }
+
+  __device__ typename ContainerPolicyT::KeyT* GetPointer(uint32_t LaneID = 0) {
+    uint32_t* Ptr = (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
+                        ? SlabHashCtxt.getPointerFromBucket(BucketId, LaneID)
+                        : SlabHashCtxt.getPointerFromSlab(AllocatorAddr, LaneID);
+    return reinterpret_cast<typename ContainerPolicyT::KeyT*>(Ptr);
+  }
+
+  __device__ bool operator==(const BucketIterator& Other) {
+    return (BucketId == Other.BucketId) && (AllocatorAddr == Other.AllocatorAddr);
+  }
+
+  __device__ bool operator!=(const BucketIterator& Other) { return !(*this == Other); }
+
+  __device__ BucketIterator(typename ContainerPolicyT::SlabHashContextT& TheSlabHashCtxt,
+                            uint32_t TheBucketId,
+                            uint32_t TheAllocatorAddr = SlabInfoT::A_INDEX_POINTER)
+      : SlabHashCtxt{TheSlabHashCtxt}
+      , BucketId{TheBucketId}
+      , AllocatorAddr{TheAllocatorAddr} {}
+
+  __device__ BucketIterator(const BucketIterator& Other)
+      : SlabHashCtxt{Other.TheSlabHashCtxt}
+      , BucketId{Other.TheBucketId}
+      , AllocatorAddr{Other.TheAllocatorAddr} {}
+
+  __device__ ContainerPolicyT::SlabHashContextT& GetSlabHashCtxt() {
+    return SlabHashCtxt;
+  }
+
+  __device__ uint32_t GetBucketId() { return BucketId; }
+  __device__ uint32_t GetAllocatorAddr() { return AllocatorAddr; }
+
+ private:
+  friend class SlabHashIterator<ContainerPolicyT>;
+};
+
+template <typename ContainerPolicyT>
+class SlabHashIterator {
+  typename ContainerPolicyT::SlabHashContextT& SlabHashCtxt;
+  BucketIterator TheBucketIterator;
+
+ public:
+  __device__ SlabHashIterator& operator++() {
+    /*
+     * TODO: Expand SlabHashIterator ++ operator
+     */
+  }
+
+  __device__ SlabHashIterator operator++(int) {
+    SlabHashIterator OldIterator{*this};
+    ++(*this);
+    return OldIterator;
+  }
+
+  __device__ typename ContainerPolicyT::KeyT* getPointer(uint32_t LaneID = 0) {
+    return reinterpret_cast<typename ContainerPolicyT::KeyT*>(
+        TheBucketIterator.getPointer(LaneID));
+  }
+
+  __device__ bool operator==(const SlabHashIterator& Other) {
+    return TheBucketIterator == Other.TheBucketIterator;
+  }
+
+  __device__ bool operator!=(const SlabHashIterator& Other) {
+    return TheBucketIterator != Other.TheBucketIterator;
+  }
+
+  __device__ ContainerPolicyT::SlabHashContextT& GetSlabHashCtxt() {
+    return SlabHashCtxt;
+  }
+
+  __device__ BucketIterator GetBucketIterator() { return TheBucketIterator; }
+
+  __device__ SlabHashIterator(
+      typename ContainerPolicyT::SlabHashContextT& TheSlabHashCtxt,
+      uint32_t TheBucketId,
+      uint32_t TheAllocatorAddr = SlabInfoT::A_INDEX_POINTER)
+      : SlabHashCtxt{TheSlabHashCtxt}
+      , TheBucketIterator{TheSlabHashCtxt, TheBucketId, TheallocatorAddr} {}
+
+  __device__ SlabHashIterator(const SlabHashIterator& Other)
+      : SlabHashCtxt{Other.TheSlabHashCtxt}, TheBucketIterator{Other.TheBucketIterator} {}
+
+  __device__ SlabHashIterator(const BucketIterator& Other)
+      : SlabHashCtxt{Other.GetSlabHashCtxt()}, TheBucketIterator{Other} {}
+};
+
 template <typename KeyT, typename AllocPolicy>
 class SlabIterator {
  public:
