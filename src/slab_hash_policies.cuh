@@ -5,13 +5,15 @@ template <typename KeyTy,
           typename ValueTy,
           typename SlabAllocPolicyTy,
           typename SlabHashTy,
-          typename SlabHashContextTy>
+          typename SlabHashContextTy,
+          typename SlabInfoTy>
 struct ContainerPolicy {
   using KeyT = KeyTy;
   using ValueT = ValueTy;
   using AllocPolicyT = SlabAllocPolicyTy;
   using SlabHashT = SlabHashTy;
   using SlabHashContextT = SlabHashContextTy;
+  using SlabInfoT = SlabInfoTy;
 };
 
 template <typename KeyTy, typename SlabAllocPolicyTy>
@@ -20,7 +22,8 @@ using ConcurrentSetPolicy = ContainerPolicy<
     void,
     SlabAllocPolicyTy,
     GpuSlabHash<KeyTy, void, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
-    GpuSlabHashContext<KeyTy, void, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>>;
+    GpuSlabHashContext<KeyTy, void, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
+    ConcurrentSetT<KeyTy>>;
 
 template <typename KeyTy, typename ValueTy, typename SlabAllocPolicyTy>
 using ConcurrentMapPolicy = ContainerPolicy<
@@ -28,7 +31,8 @@ using ConcurrentMapPolicy = ContainerPolicy<
     ValueTy,
     SlabAllocPolicyTy,
     GpuSlabHash<KeyTy, ValueTy, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentMap>,
-    GpuSlabHashContext<KeyTy, ValueTy, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentMap>>;
+    GpuSlabHashContext<KeyTy, ValueTy, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentMap>,
+    ConcurrentMapT<KeyTy, ValueTy>>;
 
 template <typename KeyTy, typename ValueTy, typename SlabAllocPolicyTy>
 using PhaseConcurrentMapPolicy = ContainerPolicy<
@@ -39,6 +43,7 @@ using PhaseConcurrentMapPolicy = ContainerPolicy<
     GpuSlabHashContext<KeyTy,
                        ValueTy,
                        SlabAllocPolicyTy,
-                       SlabHashTypeT::PhaseConcurrentMap>>;
+                       SlabHashTypeT::PhaseConcurrentMap>,
+    PhaseConcurrentMapT<KeyTy, ValueTy>>;
 
 #endif  // SLAB_POLICIES_CUH_
