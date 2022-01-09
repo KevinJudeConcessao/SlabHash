@@ -16,9 +16,7 @@
 
 #pragma once
 
-// a forward iterator for the slab hash data structure:
-// currently just specialized for concurrent set
-// TODO implement for other types
+
 
 template <typename ContainerPolicyT>
 class SlabHashIterator;
@@ -89,14 +87,22 @@ class BucketIterator {
 
 template <typename ContainerPolicyT>
 class SlabHashIterator {
+  using SlabInfoT = typename ContainerPolicyT::SlabInfoT;
+
   typename ContainerPolicyT::SlabHashContextT& SlabHashCtxt;
   BucketIterator TheBucketIterator;
 
  public:
   __device__ SlabHashIterator& operator++() {
-    /*
-     * TODO: Expand SlabHashIterator ++ operator
-     */
+    uint32_t BucketId = TheBucketIterator.GetBucketId();
+    if (BucketId == SlabHashCtxt.getNumBuckets())
+      return;
+
+    ++TheBucketIterator;
+    if (TheBucketIterator.GetAllocatorAddr() == SlabInfoT::EMPTY_INDEX_POINTER) {
+      TheBucketIterator = BucketIterator<ContainerPolicyT>(
+          SlabHashCtxt, BucketId + 1, SlabInfoT::A_INDEX_POINTER);
+    }
   }
 
   __device__ SlabHashIterator operator++(int) {
@@ -138,6 +144,10 @@ class SlabHashIterator {
       : SlabHashCtxt{Other.GetSlabHashCtxt()}, TheBucketIterator{Other} {}
 };
 
+
+// a forward iterator for the slab hash data structure:
+// currently just specialized for concurrent set
+// TODO implement for other types
 template <typename KeyT, typename AllocPolicy>
 class SlabIterator {
  public:
