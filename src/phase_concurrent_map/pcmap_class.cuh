@@ -119,14 +119,14 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
                                              FilterMapTy* FilterMaps = nullptr);
 
   template <typename FilterTy>
-  __device__ __forceinline__ UpsertStatusKind upsertPair(
-      bool& ToBeUpserted,
-      const uint32_t& LaneID,
-      const KeyT& TheKey,
-      const ValueT& TheValue,
-      const uint32_t BucketID,
-      typename AllocPolicy::AllocatorContextT& TheAllocatorContext,
-      FilterTy* Filters = nullptr);
+  __device__ __forceinline__ UpsertStatusKind
+  upsertPair(bool& ToBeUpserted,
+             const uint32_t& LaneID,
+             const KeyT& TheKey,
+             const ValueT& TheValue,
+             const uint32_t BucketID,
+             typename AllocPolicy::AllocatorContextT& TheAllocatorContext,
+             FilterTy* Filters = nullptr);
 
   __device__ __forceinline__ void searchKey(bool& ToBeSearched,
                                             const uint32_t& LaneID,
@@ -159,6 +159,26 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
   __device__ __forceinline__ uint32_t* getPointerFromBucket(const uint32_t BucketID,
                                                             const uint32_t LaneID) {
     return reinterpret_cast<uint32_t*>(&BucketHeadSlabs[BucketID]) + LaneID;
+  }
+
+  using Iterator = iterator::SlabIterator<PhaseConcurrentMapPolicy<KeyT, AllocPolicy>>;
+  using BucketIterator =
+      iterator::BucketIterator<PhaseConcurrentMapPolicy<KeyT, AllocPolicy>>;
+
+  __device__ Iterator Begin() {
+    return Iterator(*this, 0, PhaseConcurrentMapT::A_INDEX_POINTER);
+  }
+
+  __device__ Iterator End() {
+    return Iterator(*this, NumberOfBuckets, PhaseConcurrentMapT::A_INDEX_POINTER);
+  }
+
+  __device__ BucketIterator BeginAt(uint32_t BucketId) {
+    return BucketIterator(*this, BucketId, PhaseConcurrentMapT::A_INDEX_POINTER);
+  }
+
+  __device__ BucketIterator EndAt(uint32_t BucketId) {
+    return BucketIterator(*this, BucketId, PhaseConcurrentMapT::EMPTY_INDEX_POINTER);
   }
 
  private:

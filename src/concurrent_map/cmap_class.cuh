@@ -172,6 +172,25 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
            bucket_id * ConcurrentMapT<KeyT, ValueT>::BASE_UNIT_SIZE + laneId;
   }
 
+  using Iterator = iterator::SlabIterator<ConcurrentMapPolicy<KeyT, AllocPolicy>>;
+  using BucketIterator = iterator::BucketIterator<ConcurrentMapPolicy<KeyT, AllocPolicy>>;
+
+  __device__ Iterator Begin() {
+    return Iterator(*this, 0, ConcurrentMapT::A_INDEX_POINTER);
+  }
+
+  __device__ Iterator End() {
+    return Iterator(*this, num_buckets_, ConcurrentMapT::A_INDEX_POINTER);
+  }
+
+  __device__ BucketIterator BeginAt(uint32_t BucketId) {
+    return BucketIterator(*this, BucketId, ConcurrentMapT::A_INDEX_POINTER);
+  }
+
+  __device__ BucketIterator EndAt(uint32_t BucketId) {
+    return BucketIterator(*this, BucketId, ConcurrentMapT::EMPTY_INDEX_POINTER);
+  }
+
  private:
   // this function should be operated in a warp-wide fashion
   // TODO: add required asserts to make sure this is true in tests/debugs
