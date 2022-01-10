@@ -18,6 +18,12 @@
 #define PCMAP_CLASS_CUH_
 
 #include <cassert>
+#include <ctime>
+#include <limits>
+#include <random>
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>;
 
 /* This is the main class that will be shallowly copied into the device to be
  * used at runtime. This class does not own the allocated memory on the GPU
@@ -29,7 +35,13 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
   static constexpr uint32_t PrimeDivisor = 4294967291u;
   static constexpr uint32_t WarpWidth = 32;
 
-  __host__ __device__ GpuSlabHashContext() {}
+  __host__ __device__ GpuSlabHashContext()
+      : NumberOfBuckets{}
+      , HashX{}
+      , HashY{}
+      , BucketHeadSlabs{}
+      , BucketHeadSlabsValue{}
+      , BucketHeadSlabsMutex{} {}
 
   __host__ __device__ GpuSlabHashContext(
       const GpuSlabHashContext<KeyT,
@@ -40,6 +52,8 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
       , HashX{TheContext.HashX}
       , HashY{TheContext.HashY}
       , BucketHeadSlabs{TheContext.BucketHeadSlabs}
+      , BucketHeadSlabsValue{TheContext.BucketHeadSlabsValue}
+      , BucketHeadSlabsMutex{TheContext.BucketHeadSlabsMutex}
       , TheAllocatorContext{TheContext.TheAllocatorContext} {}
 
   __host__ __device__ ~GpuSlabHashContext() {}
@@ -182,11 +196,15 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
   }
 
  private:
+  friend class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>;
+
   uint32_t NumberOfBuckets;
   uint32_t HashX;
   uint32_t HashY;
 
   typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT* BucketHeadSlabs;
+  typename PhaseConcurrentMapT<KeyT, ValueT>::ValueSlabTypeT* BucketHeadSlabsValue;
+  typename PhaseConcurrentMapT<KeyT, ValueT>::MutexSlabTypeT* BucketHeadSlabsMutex;
 
   typename AllocPolicy::AllocatorContextT TheAllocatorContext;
 
@@ -253,16 +271,19 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
 
   uint32_t NumberOfBuckets;
 
-  GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
-      GpuContext;
   typename AllocPolicy::DynamicAllocatorT* TheAllocator;
   uint32_t DeviceIndex;
   uint8_t* BucketHeadSlabs;
+  uint8_t* BucketHeadSlabsValue;
+  uint8_t* BucketHeadSlabsMutex;
 
   struct {
     uint32_t HashX;
     uint32_t HashY;
   } HashFunctionParameters;
+
+  GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
+      GpuContext;
 
  public:
   GpuSlabHash(const uint32_t NumberOfBuckets,
@@ -272,20 +293,54 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
               const bool IdentityHash = false)
       : NumberOfBuckets(NumberOfBuckets)
       , TheAllocator(TheAllocator)
-      , DeviceIndex(DeviceIndex) {
-    size_t SlabSize = sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT);
-    assert(TheAllocator && "The allocator is NULL");
-    assert(slabSize == (WarpWidth * sizeof(uint32_t)) &&
-           "Size of slab on PhaseConcurrentMap should be 128 bytes");
-
+      , DeviceIndex(DeviceIndex)
+      , BucketHeadSlabs{nullptr}
+      , BucketHeadSlabsValue{nullptr}
+      , BucketHeadSlabsMutex{nullptr}
+      , HashFunctionParameters{0u, 0u}
+      , GpuContext{} {
     int DeviceCount = 0;
 
-    /* TODO: Finish Implementation:
-     * - Allocate head slabs
-     * - Allocate value slabs and mutex slabs for head slabs.
-     */
+    assert(TheAllocator && "The allocator is NULL");
+    CHECK_CUDA_ERROR(cudaGetDeviceCount(&DeviceCount));
+    assert(DeviceIndex < DeviceCount && "Device Index >= Device Count");
+    CHECK_CUDA_ERROR(cudaSetDevice(DeviceIndex));
 
-    __builtin_unreachable();
+    constexpr size_t KeySlabSize =
+        sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT);
+    constexpr size_t ValueSlabSize =
+        sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::ValueSlabTypeT);
+    constexpr size_t MutexSlabSize =
+        sizeof(typename PhaseConcurrentMapT<KeyT, ValueT>::MutexSlabTypeT);
+
+    static_assert(KeySlabSize == 32 * sizeof(uint32_t));
+    static_assert(ValueSlabSize == 32 * sizeof(uint32_t));
+    static_assert(MutexSlabSize == 32 * sizeof(uint32_t));
+
+    CHECK_CUDA_ERROR(cudaMalloc(&BucketHeadSlabs, KeySlabSize * NumberOfBuckets));
+    CHECK_CUDA_ERROR(cudaMalloc(&BucketHeadSlabsValue, ValueSlabSize * NumberOfBuckets));
+    CHECK_CUDA_ERROR(cudaMalloc(&BucketHeadSlabsMutex, MutexSlabSize * NumberOfBuckets));
+
+    CHECK_CUDA_ERROR(cudaMemset(BucketHeadSlabs, 0xFF, KeySlabSize * NumberOfBuckets));
+    CHECK_CUDA_ERROR(
+        cudaMemset(BucketHeadSlabsValue, 0xFF, ValueSlabSize * NumberOfBuckets));
+    CHECK_CUDA_ERROR(
+        cudaMemset(BucketHeadSlabsMutex, 0xFF, MutexSlabSize * NumberOfBuckets));
+
+    std::random_device RandomDevice;
+    std::mt19937 RandomNumberGenerator(RandomDevice());
+    std::uniform_int_distribution<uint32_t> Distribution(
+        1, std::numeric_limits<uint32_t>::max());
+
+    HashFunctionParameters = IdentityHash ? {0u, 0u} : {Distribution(), Distribution()};
+
+    GpuContext.NumberOfBuckets = NumberOfBuckets;
+    GpuContext.HashX = HashFunctionParameters.HashX;
+    GpuContext.HashY = HashFunctionParameters.HashY;
+    GpuContext.BucketHeadSlabs = reintepret_cast<> BucketHeadSlabs;
+    GpuContext.BucketHeadSlabsValue = BucketHeadSlabsValue;
+    GpuContext.BucketHeadSlabsMutex = BucketHeadSlabsMutex;
+    GpuContext.TheAllocatorContext = *TheAllocator->getAllocatorContext();
   }
 };
 
