@@ -97,6 +97,13 @@ class BucketIterator {
  private:
   friend class SlabHashIterator<ContainerPolicyT>;
 };
+
+template <typename ContainerPolicyT>
+struct ResultT {
+  static constexpr uint32_t InvalidLane = 32;
+  uint32_t LaneID;
+  BucketIterator TheIterator;
+};
 }  // end namespace iterator
 
 template <typename ContainerPolicyT>
