@@ -97,6 +97,9 @@ struct __align__(32) PhaseConcurrentValueSlab {
   uint32_t _2[1];
 };
 
+template <typename KeyT, typename ValueT>
+using PhaseConcurrentMutexSlab = PhaseConcurrentValueSlab<KeyT, ValueT>;
+
 /*
  * Different types of slab hash:
  * 1. Concurrent map: it assumes that all operations can be performed
@@ -160,6 +163,7 @@ class PhaseConcurrentMapT {
 
   using KeySlabTypeT = PhaseConcurrentKeySlab<KeyT, ValueT>;
   using ValueSlabTypeT = PhaseConcurrentValueSlab<KeyT, ValueT>;
+  using MutexSlabTypeT = PhaseConcurrentMutexSlab<KeyT, ValueT>;
   using SlabTypeT = KeySlabTypeT;
 
   static std::string getTypeName() { return std::string("PhaseConcurrentMap"); }
