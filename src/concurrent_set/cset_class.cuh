@@ -125,6 +125,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
 
   using Iterator = iterator::SlabIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
   using BucketIterator = iterator::BucketIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
+  using ResultT = iterator::ResultT<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
 
   __device__ Iterator Begin() {
     return Iterator(*this, 0, ConcurrentSetT::A_INDEX_POINTER);
@@ -141,6 +142,40 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
   __device__ BucketIterator EndAt(uint32_t BucketId) {
     return BucketIterator(*this, BucketId, ConcurrentSetT::EMPTY_INDEX_POINTER);
   }
+
+  /* Semantics of the iterator based operations
+   * ~ SEARCH:
+   *   - If found, return iterator to the slab where the key is found.
+   *   - If not found, return the iterator to the last slab if there are
+   *     free lanes available. Otherwise, return end().
+   *
+   * ~ INSERT:
+   *   - Accepts an iterator as hint for possible insertion in the bucket.
+   *   - If successful, returns an iterator for the slab where the insertion occured.
+   *   - If not successful (key was found), return the iterator where the key was found,
+   *     in the slab list, since the hint iterator's original position.
+   *
+   * ~ DELETE:
+   *   - Accepts an iterator as hint for possible deletion in the bucket.
+   *   - Returns the same iterator if the key was found; returns end() otherwise.
+   */
+
+  __device__ __forceinline__ ResultT
+  insertKey(bool& to_be_inserted,
+            const uint32_t& laneId,
+            const KeyT& myKey,
+            BucketIterator& Iterator,
+            typename AllocPolicy::AllocatorContextT& local_allocator_context);
+
+  __device__ __forceinline__ ResultT searchKey(bool& to_be_searched,
+                                               const uint32_t& laneId,
+                                               const KeyT& myKey,
+                                               BucketIterator& Iterator);
+
+  __device__ __forceinline__ ResultT deleteKey(bool& ToDelete,
+                                               const uint32_t& LaneID,
+                                               KeyT& TheKey,
+                                               BucketIterator& Iterator);
 
  private:
   // this function should be operated in a warp-wide fashion
