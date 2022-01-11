@@ -166,8 +166,8 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::del
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
     uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
     uint32_t Data = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
-                            ? *getPointerFromBucket(SourceBucket, LaneID)
-                            : *getPointerFromSlab(CurrentSlabPtr, LaneID);
+                        ? *getPointerFromBucket(SourceBucket, LaneID)
+                        : *getPointerFromSlab(CurrentSlabPtr, LaneID);
 
     uint32_t ReqKey =
         __shfl_sync(0xFFFFFFFF,
@@ -206,4 +206,128 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::del
   }
 
   return DeletionStatus;
+}
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+using ResultT =
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::ResultT;
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+using IteratorT =
+    GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::
+        BucketIterator;
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+__device__ __forceinline__ ResultT<KeyT, ValueT, AllocPolicy> insertKey(
+    bool& to_be_inserted,
+    const uint32_t& laneId,
+    const KeyT& myKey,
+    IteratorT<KeyT, ValueT, AllocPolicy>& Iterator,
+    typename AllocPolicy::AllocatorContextT& local_allocator_context) {
+
+  using SlabHashT = ConcurrentSet<KeyT>;
+  using BucketIterator = Iterator<KeyT, ValueT, AllocPolicy>;
+  uint32_t WorkQueue = 0;
+
+  BucketIterator TheIterator{EndAt(CurrentIterator.GetBucketId())};
+  uint32_t FoundLane = ResultT<KeyT, ValueT, AllocPolicy>::InvalidLane;
+  
+  /*
+   * TODO: Implement iterator based insert operation
+   */
+
+  return {FoundLane, TheIterator};
+}
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+__device__ __forceinline__ ResultT<KeyT, ValueT, AllocPolicy> searchKey(
+    bool& to_be_searched,
+    const uint32_t& laneId,
+    const KeyT& myKey,
+    IteratorT<KeyT, ValueT, AllocPolicy>& Iterator) {
+  using SlabHashT = ConcurrentSet<KeyT>;
+  using BucketIterator = Iterator<KeyT, ValueT, AllocPolicy>;
+  uint32_t WorkQueue = 0;
+
+  BucketIterator TheIterator{EndAt(CurrentIterator.GetBucketId())};
+  uint32_t FoundLane = ResultT<KeyT, ValueT, AllocPolicy>::InvalidLane;
+
+  while ((WorkQueue = __ballot_sync(0xFFFFFFFF, to_be_searched)) != 0) {
+    uint32_t SourceLane = __ffs(WorkQueue) - 1;
+    uint32_t ReqKey =
+        __shfl_sync(0xFFFFFFFF,
+                    *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&myKey)),
+                    SourceLane,
+                    32);
+
+    BucketIterator CurrentIterator =
+        Iterator.BucketShuffleSync(0xFFFFFFFF, SourceLane, 32);
+    BucketIterator End = EndAt(CurrentIterator.GetBucketId());
+    bool Found = false;
+
+    while (!Found && CurrentIterator != End) {
+      KeyT TheKey = *CurrentIterator.GetPointer(LaneID);
+      int Lane = __ffs(__ballot_sync(0xFFFFFFFF, TheKey == ReqKey) &
+                       SlabHashT::REGULAR_NODE_KEY_MASK) -
+                 1;
+      Found = (Lane >= 0);
+      if (Found) {
+        if (SourceLane == laneId) {
+          TheIterator = CurrentIterator;
+          FoundLane = Lane;
+          to_be_searched = false;
+        }
+      } else {
+        ++CurrentIterator;
+      }
+    }
+  }
+
+  return {FoundLane, TheIterator};
+}
+
+template <typename KeyT, typename ValueT, typename AllocPolicy>
+__device__ __forceinline__ ResultT<KeyT, ValueT, AllocPolicy> deleteKey(
+    bool& ToDelete,
+    const uint32_t& LaneID,
+    KeyT& TheKey,
+    IteratorT<KeyT, ValueT, AllocPolicy>& Iterator) {
+  using SlabHashT = ConcurrentSet<KeyT>;
+  using BucketIterator = Iterator<KeyT, ValueT, AllocPolicy>;
+  uint32_t WorkQueue = 0;
+
+  BucketIterator TheIterator{EndAt(CurrentIterator.GetBucketId())};
+  uint32_t FoundLane = ResultT<KeyT, ValueT, AllocPolicy>::InvalidLane;
+
+  while ((WorkQueue = __ballot_sync(0xFFFFFFFF, ToDelete)) != 0) {
+    uint32_t SourceLane = __ffs(WorkQueue) - 1;
+    uint32_t ReqKey =
+        __shfl_sync(0xFFFFFFFF,
+                    *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&myKey)),
+                    SourceLane,
+                    32);
+
+    BucketIterator CurrentIterator =
+        Iterator.BucketShuffleSync(0xFFFFFFFF, SourceLane, 32);
+    KeyT CurrentLaneKey = *CurrentIterator.GetPointer(LaneID);
+    int Lane = __ffs(__ballot_sync(0xFFFFFFFF, CurrentLaneKey == ReqKey) &
+                     SlabHashT::REGULAR_NODE_KEY_MASK) -
+               1;
+
+    bool Found = (Lane >= 0);
+    if (Found) {
+      if (LaneID == SourceLane) {
+        uint32_t* DestPtr = TheIterator.GetPointer(Lane);
+        if (TheKey == atomicExch(DestPtr, TOMBSTONE_KEY)) {
+          TheIterator = CurrentIterator;
+          FoundLane = Lane;
+        }
+      }
+    }
+
+    if (LaneID == SourceLane)
+      ToBeDeleted = false;
+  }
+
+  return {FoundLane, TheIterator};
 }
