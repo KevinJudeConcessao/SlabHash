@@ -72,6 +72,22 @@ class BucketIterator {
     return !(*this == Other);
   }
 
+  __device__ __forceinline__ BucketIterator BucketShuffleSync(unsigned Mask,
+                                                              int SourceLane,
+                                                              int Width = 32) {
+    uint64_t SlabAddr = reinterpret_cast<uint64_t>(&SlabHashCtxt);
+    uint64_t TheSlabAddr = __shfl_sync(Mask, SlabAddr, SourceLane, Width);
+    uint32_t TheBucketId = __shfl_sync(Mask, BucketId, SourceLane, Width);
+    uint32_t TheAllocatorAddr = __shfl_sync(Mask, AllocatorAddr, SourceLane, Width);
+    uint64_t ThePtrPrevSlabNextLane = __shfl_sync(
+        Mask, reinterpret_cast<uint64_t>(PtrPrevSlabNextLane), SourceLane, Width);
+
+    return {*reinterpret_cast<typename ContainerPolicyT::SlabHashContextT*>(TheSlabAddr),
+            TheBucketId,
+            TheAllocatorAddr,
+            ThePtrPrevSlabNextLane};
+  }
+
   __device__ BucketIterator(typename ContainerPolicyT::SlabHashContextT& TheSlabHashCtxt,
                             uint32_t TheBucketId,
                             uint32_t TheAllocatorAddr = SlabInfoT::A_INDEX_POINTER,
