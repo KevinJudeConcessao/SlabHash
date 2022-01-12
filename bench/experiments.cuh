@@ -27,6 +27,10 @@
 
 // ======= Part 1: bulk experiments
 
+using AllocPolicy = LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>;
+
 /*
  * In this experiment, we compute the bulk build time versus different load
  * factors.
@@ -82,13 +86,13 @@ void load_factor_bulk_experiment(uint32_t num_keys,
 
   uint32_t experiment_id = 0;
 
-  for (int i_expected_chain = 0; i_expected_chain < num_sample_lf;
+  for (int i_expected_chain = 0; i_expected_chain < num_sample_lf; 
        i_expected_chain++) {
     float expected_chain = expected_chain_list[i_expected_chain];
-    uint32_t expected_elements_per_bucket =
+    uint32_t expected_elements_per_bucket = 
         expected_chain * num_elements_per_unit;
-    uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
-                           expected_elements_per_bucket;
+    uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) / 
+    expected_elements_per_bucket;
 
     // ==== Running CUDPP hash table with the same load factor:
     if (run_cudpp) {
@@ -99,7 +103,7 @@ void load_factor_bulk_experiment(uint32_t num_keys,
 
     // === generating random queries with a fixed ratio existing in keys
     uint32_t num_existing = static_cast<uint32_t>(query_ratio * num_queries);
-    auto buffer_ptr =
+    auto buffer_ptr = 
         key_gen.getSingleBatchPointer(num_keys, num_queries, num_existing);
 
     for (int i = 0; i < num_keys; i++) {
@@ -117,7 +121,7 @@ void load_factor_bulk_experiment(uint32_t num_keys,
     double load_factor = 0.0;
     for (int iter = 0; iter < num_iter; iter++) {
       // building the hash table:
-      gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> hash_table(
+      gpu_hash_table<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> hash_table(
           num_keys, num_buckets, device_idx, time(nullptr));
 
       build_time += hash_table.hash_build(h_key, h_value, num_keys);
@@ -129,13 +133,15 @@ void load_factor_bulk_experiment(uint32_t num_keys,
         printf(
             "%d: num_element = %u, load_factor = %.2f, query_ratio = %.2f, "
             "build_rate: %.2f M elements/s\n",
-            experiment_id, num_keys, load_factor, query_ratio,
+            experiment_id,
+            num_keys,
+            load_factor,
+            query_ratio,
             double(num_keys) / build_time / 1000.0);
       }
       // performing the queries:
       search_time += hash_table.hash_search(h_query, h_result, num_queries);
-      search_time_bulk +=
-          hash_table.hash_search_bulk(h_query, h_result, num_queries);
+      search_time_bulk += hash_table.hash_search_bulk(h_query, h_result, num_queries);
 
       // CUDPP hash table:
       if (run_cudpp) {
@@ -149,38 +155,35 @@ void load_factor_bulk_experiment(uint32_t num_keys,
     load_factor /= num_iter;
 
     rapidjson::Value object(rapidjson::kObjectType);
-    object.AddMember("id", rapidjson::Value().SetInt(experiment_id++),
-                     doc.GetAllocator());
-    object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys),
-                     doc.GetAllocator());
-    object.AddMember("num_buckets", rapidjson::Value().SetInt(num_buckets),
-                     doc.GetAllocator());
-    object.AddMember("num_queries", rapidjson::Value().SetInt(num_queries),
-                     doc.GetAllocator());
-    object.AddMember("build_time_ms", rapidjson::Value().SetDouble(build_time),
-                     doc.GetAllocator());
     object.AddMember(
-        "build_rate_mps",
-        rapidjson::Value().SetDouble(double(num_keys) / build_time / 1000.0),
-        doc.GetAllocator());
+        "id", rapidjson::Value().SetInt(experiment_id++), doc.GetAllocator());
+    object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys), doc.GetAllocator());
+    object.AddMember(
+        "num_buckets", rapidjson::Value().SetInt(num_buckets), doc.GetAllocator());
+    object.AddMember(
+        "num_queries", rapidjson::Value().SetInt(num_queries), doc.GetAllocator());
+    object.AddMember(
+        "build_time_ms", rapidjson::Value().SetDouble(build_time), doc.GetAllocator());
+    object.AddMember("build_rate_mps",
+                     rapidjson::Value().SetDouble(double(num_keys) / build_time / 1000.0),
+                     doc.GetAllocator());
     object.AddMember("search_time_bulk_ms",
                      rapidjson::Value().SetDouble(search_time_bulk),
                      doc.GetAllocator());
-    object.AddMember("search_rate_bulk_mps",
-                     rapidjson::Value().SetDouble(double(num_queries) /
-                                                  search_time_bulk / 1000.0),
-                     doc.GetAllocator());
-    object.AddMember("search_time_ms",
-                     rapidjson::Value().SetDouble(search_time),
-                     doc.GetAllocator());
-    object.AddMember("search_rate_mps",
-                     rapidjson::Value().SetDouble(double(num_queries) /
-                                                  search_time / 1000.0),
-                     doc.GetAllocator());
-    object.AddMember("query_ratio", rapidjson::Value().SetDouble(query_ratio),
-                     doc.GetAllocator());
-    object.AddMember("load_factor", rapidjson::Value().SetDouble(load_factor),
-                     doc.GetAllocator());
+    object.AddMember(
+        "search_rate_bulk_mps",
+        rapidjson::Value().SetDouble(double(num_queries) / search_time_bulk / 1000.0),
+        doc.GetAllocator());
+    object.AddMember(
+        "search_time_ms", rapidjson::Value().SetDouble(search_time), doc.GetAllocator());
+    object.AddMember(
+        "search_rate_mps",
+        rapidjson::Value().SetDouble(double(num_queries) / search_time / 1000.0),
+        doc.GetAllocator());
+    object.AddMember(
+        "query_ratio", rapidjson::Value().SetDouble(query_ratio), doc.GetAllocator());
+    object.AddMember(
+        "load_factor", rapidjson::Value().SetDouble(load_factor), doc.GetAllocator());
     object.AddMember("exp_chain_length",
                      rapidjson::Value().SetDouble(expected_chain),
                      doc.GetAllocator());
@@ -253,14 +256,12 @@ void singleton_experiment(uint32_t num_keys,
 
   const uint32_t expected_elements_per_bucket =
       expected_chain_length * num_elements_per_unit;
-  const uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
-                               expected_elements_per_bucket;
+  const uint32_t num_buckets =
+      (num_keys + expected_elements_per_bucket - 1) / expected_elements_per_bucket;
 
   // === generating random queries with a fixed ratio existing in keys
-  const uint32_t num_existing =
-      static_cast<uint32_t>(query_ratio * num_queries);
-  auto buffer_ptr =
-      key_gen.getSingleBatchPointer(num_keys, num_queries, num_existing);
+  const uint32_t num_existing = static_cast<uint32_t>(query_ratio * num_queries);
+  auto buffer_ptr = key_gen.getSingleBatchPointer(num_keys, num_queries, num_existing);
 
   for (int i = 0; i < num_keys; i++) {
     h_key[i] = buffer_ptr[i];
@@ -277,7 +278,7 @@ void singleton_experiment(uint32_t num_keys,
   double load_factor = 0.0;
   for (int iter = 0; iter < num_iter; iter++) {
     // building the hash table:
-    gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> hash_table(
+    gpu_hash_table<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> hash_table(
         num_keys, num_buckets, device_idx, time(nullptr));
 
     build_time += hash_table.hash_build(h_key, h_value, num_keys);
@@ -287,8 +288,7 @@ void singleton_experiment(uint32_t num_keys,
 
     // performing the queries:
     search_time += hash_table.hash_search(h_query, h_result, num_queries);
-    search_time_bulk +=
-        hash_table.hash_search_bulk(h_query, h_result, num_queries);
+    search_time_bulk += hash_table.hash_search_bulk(h_query, h_result, num_queries);
 
     // CUDPP hash table:
     if (run_cudpp) {
@@ -306,44 +306,44 @@ void singleton_experiment(uint32_t num_keys,
         "num_element = %u, load_factor = %.2f, query_ratio = %.2f, num_buckets "
         "= %d\nbuild_rate: %.2f M elements/s\nsearch rate = %.2f M "
         "queries/s\nbulk search rate = %.2f M queries/s\n",
-        num_keys, load_factor, query_ratio, num_buckets,
+        num_keys,
+        load_factor,
+        query_ratio,
+        num_buckets,
         double(num_keys) / build_time / 1000.0,
         double(num_queries) / search_time / 1000.0,
         double(num_queries) / search_time_bulk / 1000.0);
   }
 
   rapidjson::Value object(rapidjson::kObjectType);
-  object.AddMember("id", rapidjson::Value().SetInt(experiment_id++),
-                   doc.GetAllocator());
-  object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys),
-                   doc.GetAllocator());
-  object.AddMember("num_buckets", rapidjson::Value().SetInt(num_buckets),
-                   doc.GetAllocator());
-  object.AddMember("num_queries", rapidjson::Value().SetInt(num_queries),
-                   doc.GetAllocator());
-  object.AddMember("build_time_ms", rapidjson::Value().SetDouble(build_time),
-                   doc.GetAllocator());
+  object.AddMember("id", rapidjson::Value().SetInt(experiment_id++), doc.GetAllocator());
+  object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys), doc.GetAllocator());
   object.AddMember(
-      "build_rate_mps",
-      rapidjson::Value().SetDouble(double(num_keys) / build_time / 1000.0),
-      doc.GetAllocator());
+      "num_buckets", rapidjson::Value().SetInt(num_buckets), doc.GetAllocator());
+  object.AddMember(
+      "num_queries", rapidjson::Value().SetInt(num_queries), doc.GetAllocator());
+  object.AddMember(
+      "build_time_ms", rapidjson::Value().SetDouble(build_time), doc.GetAllocator());
+  object.AddMember("build_rate_mps",
+                   rapidjson::Value().SetDouble(double(num_keys) / build_time / 1000.0),
+                   doc.GetAllocator());
   object.AddMember("search_time_bulk_ms",
                    rapidjson::Value().SetDouble(search_time_bulk),
                    doc.GetAllocator());
-  object.AddMember("search_rate_bulk_mps",
-                   rapidjson::Value().SetDouble(double(num_queries) /
-                                                search_time_bulk / 1000.0),
-                   doc.GetAllocator());
-  object.AddMember("search_time_ms", rapidjson::Value().SetDouble(search_time),
-                   doc.GetAllocator());
+  object.AddMember(
+      "search_rate_bulk_mps",
+      rapidjson::Value().SetDouble(double(num_queries) / search_time_bulk / 1000.0),
+      doc.GetAllocator());
+  object.AddMember(
+      "search_time_ms", rapidjson::Value().SetDouble(search_time), doc.GetAllocator());
   object.AddMember(
       "search_rate_mps",
       rapidjson::Value().SetDouble(double(num_queries) / search_time / 1000.0),
       doc.GetAllocator());
-  object.AddMember("query_ratio", rapidjson::Value().SetDouble(query_ratio),
-                   doc.GetAllocator());
-  object.AddMember("load_factor", rapidjson::Value().SetDouble(load_factor),
-                   doc.GetAllocator());
+  object.AddMember(
+      "query_ratio", rapidjson::Value().SetDouble(query_ratio), doc.GetAllocator());
+  object.AddMember(
+      "load_factor", rapidjson::Value().SetDouble(load_factor), doc.GetAllocator());
   object.AddMember("exp_chain_length",
                    rapidjson::Value().SetDouble(expected_chain_length),
                    doc.GetAllocator());
@@ -413,22 +413,20 @@ void build_search_bulk_experiment(uint32_t num_keys_start,
   const uint32_t num_elements_per_unit = 15;  // todo: change this
 
   // === generating random key-values
-  BatchedDataGen key_gen(num_keys_end + max_queries,
-                         num_keys_end + max_queries);
-  key_gen.generate_random_keys(std::time(nullptr), /*num_msb = */ 0,
+  BatchedDataGen key_gen(num_keys_end + max_queries, num_keys_end + max_queries);
+  key_gen.generate_random_keys(std::time(nullptr),
+                               /*num_msb = */ 0,
                                /*unique = */ false);
 
   auto f = [](uint32_t key) { return ~key; };
 
   uint32_t experiment_id = 0;
 
-  for (uint32_t num_keys = num_keys_start; num_keys <= num_keys_end;
-       num_keys <<= 1) {
+  for (uint32_t num_keys = num_keys_start; num_keys <= num_keys_end; num_keys <<= 1) {
     uint32_t num_queries = num_keys;
-    const uint32_t expected_elements_per_bucket =
-        expected_chain * num_elements_per_unit;
-    const uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
-                                 expected_elements_per_bucket;
+    const uint32_t expected_elements_per_bucket = expected_chain * num_elements_per_unit;
+    const uint32_t num_buckets =
+        (num_keys + expected_elements_per_bucket - 1) / expected_elements_per_bucket;
 
     float build_time = 0.0f;
     // float cudpp_build_time = 0.0f;
@@ -438,10 +436,8 @@ void build_search_bulk_experiment(uint32_t num_keys_start,
     double load_factor_total = 0.0;
 
     // === generating random queries with a fixed ratio existing in keys
-    const uint32_t num_existing =
-        static_cast<uint32_t>(existing_ratio * num_queries);
-    auto buffer_ptr =
-        key_gen.getSingleBatchPointer(num_keys, num_queries, num_existing);
+    const uint32_t num_existing = static_cast<uint32_t>(existing_ratio * num_queries);
+    auto buffer_ptr = key_gen.getSingleBatchPointer(num_keys, num_queries, num_existing);
 
     for (int i = 0; i < num_keys; i++) {
       h_key[i] = buffer_ptr[i];
@@ -454,7 +450,7 @@ void build_search_bulk_experiment(uint32_t num_keys_start,
 
     for (int iter = 0; iter < num_iter; iter++) {
       // building the hash table:
-      gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> hash_table(
+      gpu_hash_table<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> hash_table(
           num_keys, num_buckets, device_idx, time(nullptr));
 
       build_time += hash_table.hash_build(h_key, h_value, num_keys);
@@ -473,8 +469,7 @@ void build_search_bulk_experiment(uint32_t num_keys_start,
       search_time += hash_table.hash_search(h_query, h_result, num_queries);
 
       // bulk implementation:
-      search_time_bulk +=
-          hash_table.hash_search_bulk(h_query, h_result, num_queries);
+      search_time_bulk += hash_table.hash_search_bulk(h_query, h_result, num_queries);
 
       // CUDPP hash table:
       // cudpp_search_time += cudpp_hash.lookup_hash_table(h_query,
@@ -489,52 +484,48 @@ void build_search_bulk_experiment(uint32_t num_keys_start,
     load_factor_total /= num_iter;
 
     if (verbose) {
-      printf("num_keys = %d, build_rate_mps = %.3f\n", num_keys,
+      printf("num_keys = %d, build_rate_mps = %.3f\n",
+             num_keys,
              double(num_keys) / build_time / 1000.0);
     }
     // storing the results:
     rapidjson::Value object(rapidjson::kObjectType);
-    object.AddMember("id", rapidjson::Value().SetInt(experiment_id++),
-                     doc.GetAllocator());
-    object.AddMember("iter", rapidjson::Value().SetInt(num_iter),
-                     doc.GetAllocator());
-    object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys),
-                     doc.GetAllocator());
-    object.AddMember("num_buckets", rapidjson::Value().SetInt(num_buckets),
-                     doc.GetAllocator());    
-    object.AddMember("num_queries", rapidjson::Value().SetInt(num_queries),
-                     doc.GetAllocator());
-    object.AddMember("build_time_ms", rapidjson::Value().SetDouble(build_time),
-                     doc.GetAllocator());
     object.AddMember(
-        "build_rate_mps",
-        rapidjson::Value().SetDouble(double(num_keys) / build_time / 1000.0),
-        doc.GetAllocator());
+        "id", rapidjson::Value().SetInt(experiment_id++), doc.GetAllocator());
+    object.AddMember("iter", rapidjson::Value().SetInt(num_iter), doc.GetAllocator());
+    object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys), doc.GetAllocator());
+    object.AddMember(
+        "num_buckets", rapidjson::Value().SetInt(num_buckets), doc.GetAllocator());
+    object.AddMember(
+        "num_queries", rapidjson::Value().SetInt(num_queries), doc.GetAllocator());
+    object.AddMember(
+        "build_time_ms", rapidjson::Value().SetDouble(build_time), doc.GetAllocator());
+    object.AddMember("build_rate_mps",
+                     rapidjson::Value().SetDouble(double(num_keys) / build_time / 1000.0),
+                     doc.GetAllocator());
     object.AddMember("search_time_bulk_ms",
                      rapidjson::Value().SetDouble(search_time_bulk),
                      doc.GetAllocator());
-    object.AddMember("search_rate_bulk_mps",
-                     rapidjson::Value().SetDouble(double(num_queries) /
-                                                  search_time_bulk / 1000.0),
-                     doc.GetAllocator());
-    object.AddMember("search_time_ms",
-                     rapidjson::Value().SetDouble(search_time),
-                     doc.GetAllocator());
-    object.AddMember("search_rate_mps",
-                     rapidjson::Value().SetDouble(double(num_queries) /
-                                                  search_time / 1000.0),
-                     doc.GetAllocator());
-    object.AddMember("query_ratio",
-                     rapidjson::Value().SetDouble(existing_ratio),
-                     doc.GetAllocator());
+    object.AddMember(
+        "search_rate_bulk_mps",
+        rapidjson::Value().SetDouble(double(num_queries) / search_time_bulk / 1000.0),
+        doc.GetAllocator());
+    object.AddMember(
+        "search_time_ms", rapidjson::Value().SetDouble(search_time), doc.GetAllocator());
+    object.AddMember(
+        "search_rate_mps",
+        rapidjson::Value().SetDouble(double(num_queries) / search_time / 1000.0),
+        doc.GetAllocator());
+    object.AddMember(
+        "query_ratio", rapidjson::Value().SetDouble(existing_ratio), doc.GetAllocator());
     object.AddMember("load_factor",
                      rapidjson::Value().SetDouble(load_factor_total),
                      doc.GetAllocator());
     object.AddMember("exp_chain_length",
                      rapidjson::Value().SetDouble(expected_chain),
                      doc.GetAllocator());
-    object.AddMember("num_buckets", rapidjson::Value().SetDouble(num_buckets),
-                     doc.GetAllocator());
+    object.AddMember(
+        "num_buckets", rapidjson::Value().SetDouble(num_buckets), doc.GetAllocator());
     object_array.PushBack(object, doc.GetAllocator());
   }
 
@@ -604,26 +595,25 @@ void concurrent_batched_op_load_factor_experiment(uint32_t max_key_num,
 
   uint32_t experiment_id = 0;
 
-  for (int i_expected_chain = 0; i_expected_chain < num_sample_lf;
-       i_expected_chain++) {
+  for (int i_expected_chain = 0; i_expected_chain < num_sample_lf; i_expected_chain++) {
     float init_build_time = 0.0f;
     float concurrent_time = 0.0f;
     double init_load_factor = 0.0;
     double final_load_factor = 0.0;
     float expected_chain = expected_chain_list[i_expected_chain];
-    uint32_t expected_elements_per_bucket =
-        expected_chain * num_elements_per_unit;
-    uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
-                           expected_elements_per_bucket;
+    uint32_t expected_elements_per_bucket = expected_chain * num_elements_per_unit;
+    uint32_t num_buckets =
+        (num_keys + expected_elements_per_bucket - 1) / expected_elements_per_bucket;
 
     // building the hash table:
     for (int iter = 0; iter < num_iter; iter++) {
       // building the hash table:
-      gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> hash_table(
+      gpu_hash_table<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> hash_table(
           num_keys, num_buckets, device_idx, time(nullptr));
 
       BatchedDataGen key_gen(max_key_num, batch_size);
-      key_gen.generate_random_keys(std::time(nullptr), /*num_msb = */ 2,
+      key_gen.generate_random_keys(std::time(nullptr),
+                                   /*num_msb = */ 2,
                                    /*unique = */ true);
 
       // initial building phase:
@@ -656,22 +646,23 @@ void concurrent_batched_op_load_factor_experiment(uint32_t max_key_num,
       printf(
           "expected = %.2f, init_load_factor = %.2f, final_load_factor = %.2f, "
           "concurrent_rate = %.3f M op/s\n",
-          expected_chain, init_load_factor, final_load_factor,
+          expected_chain,
+          init_load_factor,
+          final_load_factor,
           float(batch_size) / concurrent_time / 1000.0f);
     }
 
     // storing the results:
     rapidjson::Value object(rapidjson::kObjectType);
-    object.AddMember("id", rapidjson::Value().SetInt(experiment_id++),
-                     doc.GetAllocator());
-    object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys),
-                     doc.GetAllocator());
-    object.AddMember("num_buckets", rapidjson::Value().SetInt(num_buckets),
-                     doc.GetAllocator());
-    object.AddMember("batch_size", rapidjson::Value().SetInt(batch_size),
-                     doc.GetAllocator());
-    object.AddMember("num_batches", rapidjson::Value().SetInt(num_batches),
-                     doc.GetAllocator());
+    object.AddMember(
+        "id", rapidjson::Value().SetInt(experiment_id++), doc.GetAllocator());
+    object.AddMember("num_keys", rapidjson::Value().SetInt(num_keys), doc.GetAllocator());
+    object.AddMember(
+        "num_buckets", rapidjson::Value().SetInt(num_buckets), doc.GetAllocator());
+    object.AddMember(
+        "batch_size", rapidjson::Value().SetInt(batch_size), doc.GetAllocator());
+    object.AddMember(
+        "num_batches", rapidjson::Value().SetInt(num_batches), doc.GetAllocator());
     object.AddMember("num_init_batches",
                      rapidjson::Value().SetInt(num_initial_batches),
                      doc.GetAllocator());
@@ -681,31 +672,31 @@ void concurrent_batched_op_load_factor_experiment(uint32_t max_key_num,
     object.AddMember("final_load_factor",
                      rapidjson::Value().SetDouble(final_load_factor),
                      doc.GetAllocator());
-    object.AddMember("insert_ratio", rapidjson::Value().SetDouble(a_insert),
-                     doc.GetAllocator());
-    object.AddMember("delete_ratio", rapidjson::Value().SetDouble(b_delete),
-                     doc.GetAllocator());
+    object.AddMember(
+        "insert_ratio", rapidjson::Value().SetDouble(a_insert), doc.GetAllocator());
+    object.AddMember(
+        "delete_ratio", rapidjson::Value().SetDouble(b_delete), doc.GetAllocator());
     object.AddMember("search_exist_ratio",
                      rapidjson::Value().SetDouble(c_search_exist),
                      doc.GetAllocator());
-    object.AddMember("search_non_exist_ratio",
-                     rapidjson::Value().SetDouble(
-                         1.0 - (a_insert + b_delete + c_search_exist)),
-                     doc.GetAllocator());
+    object.AddMember(
+        "search_non_exist_ratio",
+        rapidjson::Value().SetDouble(1.0 - (a_insert + b_delete + c_search_exist)),
+        doc.GetAllocator());
     object.AddMember("initial_time_ms",
                      rapidjson::Value().SetDouble(init_build_time),
                      doc.GetAllocator());
-    object.AddMember("initial_rate_mps",
-                     rapidjson::Value().SetDouble(double(batch_size) /
-                                                  init_build_time / 1000.0),
-                     doc.GetAllocator());
+    object.AddMember(
+        "initial_rate_mps",
+        rapidjson::Value().SetDouble(double(batch_size) / init_build_time / 1000.0),
+        doc.GetAllocator());
     object.AddMember("concurrent_time_ms",
                      rapidjson::Value().SetDouble(concurrent_time),
                      doc.GetAllocator());
-    object.AddMember("concurrent_rate_mps",
-                     rapidjson::Value().SetDouble(double(batch_size) /
-                                                  concurrent_time / 1000.0),
-                     doc.GetAllocator());
+    object.AddMember(
+        "concurrent_rate_mps",
+        rapidjson::Value().SetDouble(double(batch_size) / concurrent_time / 1000.0),
+        doc.GetAllocator());
     object_array.PushBack(object, doc.GetAllocator());
   }
 
