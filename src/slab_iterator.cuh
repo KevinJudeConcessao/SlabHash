@@ -1,5 +1,6 @@
 /*
  * Copyright 2019 Saman Ashkiani
+ * Copyright 2021 [TODO: Assign Copyright]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +18,18 @@
 #pragma once
 
 namespace iterator {
-template <typename ContainerPolicyT>
+template <typename ContainerPolicyT, typename BucketIteratorT>
 class SlabHashIterator;
 
 template <typename ContainerPolicyT>
 class BucketIterator {
+ protected:
   typename ContainerPolicyT::SlabHashContextT& SlabHashCtxt;
   uint32_t BucketId;
   uint32_t AllocatorAddr;
   uint32_t* PtrPrevSlabNextLane;
+
+ public:
   using SlabInfoT = typename ContainerPolicyT::SlabInfoT;
 
  public:
@@ -36,13 +40,13 @@ class BucketIterator {
 
     if (LaneId == SlabInfoT::NEXT_PTR_LANE) {
       PtrPrevSlabNextLane = (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
-                                ? *SlabHashCtxt.getPointerFromBucket(BucketId, LaneID)
-                                : *SlabHashCtxt.getPointerFromSlab(AllocatorAddr, LaneID);
+                                ? *SlabHashCtxt.getPointerFromBucket(BucketId, LaneId)
+                                : *SlabHashCtxt.getPointerFromSlab(AllocatorAddr, LaneId);
       AllocatorAddr = *PtrPrevSlabNextLane;
     }
 
-    PrevSlabNextLanePtr =
-        __shfl_sync(0xFFFFFFFF, PrevSlabNextLanePtr, SlabInfoT::NEXT_PTR_LANE, 32);
+    PtrPrevSlabNextLane =
+        __shfl_sync(0xFFFFFFFF, PtrPrevSlabNextLane, SlabInfoT::NEXT_PTR_LANE, 32);
     AllocatorAddr = __shfl_sync(0xFFFFFFFF, AllocatorAddr, SlabInfoT::NEXT_PTR_LANE, 32);
   }
 
@@ -53,7 +57,7 @@ class BucketIterator {
   }
 
   __device__ __forceinline__ uint32_t* GetPtrPrevSlabNextLane() {
-    return PrevSlabNextLanePtr;
+    return PtrPrevSlabNextLane;
   }
 
   __device__ __forceinline__ typename ContainerPolicyT::KeyT* GetPointer(
@@ -64,17 +68,18 @@ class BucketIterator {
     return reinterpret_cast<typename ContainerPolicyT::KeyT*>(Ptr);
   }
 
-  __device__ __forceinline__ bool operator==(const BucketIterator& Other) {
+  __device__ __forceinline__ bool operator==(
+      const BucketIterator<ContainerPolicyT>& Other) {
     return (BucketId == Other.BucketId) && (AllocatorAddr == Other.AllocatorAddr);
   }
 
-  __device__ __forceinline__ bool operator!=(const BucketIterator& Other) {
+  __device__ __forceinline__ bool operator!=(
+      const BucketIterator<ContainerPolicyT>& Other) {
     return !(*this == Other);
   }
 
-  __device__ __forceinline__ BucketIterator BucketShuffleSync(unsigned Mask,
-                                                              int SourceLane,
-                                                              int Width = 32) {
+  __device__ __forceinline__ BucketIterator<ContainerPolicyT>
+  BucketShuffleSync(unsigned Mask, int SourceLane, int Width = 32) {
     uint64_t SlabAddr = reinterpret_cast<uint64_t>(&SlabHashCtxt);
     uint64_t TheSlabAddr = __shfl_sync(Mask, SlabAddr, SourceLane, Width);
     uint32_t TheBucketId = __shfl_sync(Mask, BucketId, SourceLane, Width);
@@ -95,42 +100,42 @@ class BucketIterator {
       : SlabHashCtxt{TheSlabHashCtxt}
       , BucketId{TheBucketId}
       , AllocatorAddr{TheAllocatorAddr}
-      , PrevSlabNextLanePtr{ThePrevSlabNextLanePtr} {}
+      , PtrPrevSlabNextLane{ThePrevSlabNextLanePtr} {}
 
-  __device__ BucketIterator(const BucketIterator& Other)
-      : SlabHashCtxt{Other.TheSlabHashCtxt}
+  __device__ BucketIterator(const BucketIterator<ContainerPolicyT>& Other) 
+      : SlabHashCtxt{Other.SlabHashCtxt}
       , BucketId{Other.TheBucketId}
       , AllocatorAddr{Other.TheAllocatorAddr}
-      , PrevSlabNextLanePtr{Other.PrevSlabNextLanePtr} {}
+      , PtrPrevSlabNextLane{Other.PtrPrevSlabNextLane} {}
 
-  __device__ __forceinline__ ContainerPolicyT::SlabHashContextT& GetSlabHashCtxt() {
+  __device__ __forceinline__ typename ContainerPolicyT::SlabHashContextT&
+  GetSlabHashCtxt() {
     return SlabHashCtxt;
   }
 
   __device__ __forceinline__ uint32_t GetBucketId() { return BucketId; }
   __device__ __forceinline__ uint32_t GetAllocatorAddr() { return AllocatorAddr; }
-
- private:
-  friend class SlabHashIterator<ContainerPolicyT>;
 };
 
-template <typename ContainerPolicyT>
+template <typename BucketIteratorT>
 struct ResultT {
   static constexpr uint32_t InvalidLane = 32;
   uint32_t LaneID;
-  BucketIterator TheIterator;
+  BucketIteratorT TheIterator;
 };
-}  // end namespace iterator
 
-template <typename ContainerPolicyT>
+template <typename ContainerPolicyT, typename BucketIteratorT>
 class SlabHashIterator {
+ public:
   using SlabInfoT = typename ContainerPolicyT::SlabInfoT;
 
+ protected:
   typename ContainerPolicyT::SlabHashContextT& SlabHashCtxt;
-  BucketIterator TheBucketIterator;
+  BucketIterator<ContainerPolicyT> TheBucketIterator;
 
  public:
-  __device__ __forceinline__ SlabHashIterator& operator++() {
+  __device__ __forceinline__ SlabHashIterator<ContainerPolicyT, BucketIteratorT>&
+  operator++() {
     uint32_t BucketId = TheBucketIterator.GetBucketId();
     if (BucketId == SlabHashCtxt.getNumBuckets())
       return;
@@ -142,8 +147,9 @@ class SlabHashIterator {
     }
   }
 
-  __device__ __forceinline__ SlabHashIterator operator++(int) {
-    SlabHashIterator OldIterator{*this};
+  __device__ __forceinline__ SlabHashIterator<ContainerPolicyT, BucketIteratorT>
+  operator++(int) {
+    SlabHashIterator<ContainerPolicyT, BucketIteratorT> OldIterator{*this};
     ++(*this);
     return OldIterator;
   }
@@ -154,19 +160,22 @@ class SlabHashIterator {
         TheBucketIterator.getPointer(LaneID));
   }
 
-  __device__ __forceinline__ bool operator==(const SlabHashIterator& Other) {
+  __device__ __forceinline__ bool operator==(
+      const SlabHashIterator<ContainerPolicyT, BucketIteratorT>& Other) {
     return TheBucketIterator == Other.TheBucketIterator;
   }
 
-  __device__ __forceinline__ bool operator!=(const SlabHashIterator& Other) {
+  __device__ __forceinline__ bool operator!=(
+      const SlabHashIterator<ContainerPolicyT, BucketIteratorT>& Other) {
     return TheBucketIterator != Other.TheBucketIterator;
   }
 
-  __device__ __forceinline__ ContainerPolicyT::SlabHashContextT& GetSlabHashCtxt() {
+  __device__ __forceinline__ typename ContainerPolicyT::SlabHashContextT&
+  GetSlabHashCtxt() {
     return SlabHashCtxt;
   }
 
-  __device__ __forceinline__ BucketIterator& GetBucketIterator() {
+  __device__ __forceinline__ BucketIterator<ContainerPolicyT>& GetBucketIterator() {
     return TheBucketIterator;
   }
 
@@ -175,14 +184,16 @@ class SlabHashIterator {
       uint32_t TheBucketId,
       uint32_t TheAllocatorAddr = SlabInfoT::A_INDEX_POINTER)
       : SlabHashCtxt{TheSlabHashCtxt}
-      , TheBucketIterator{TheSlabHashCtxt, TheBucketId, TheallocatorAddr} {}
+      , TheBucketIterator{TheSlabHashCtxt, TheBucketId, TheAllocatorAddr} {}
 
-  __device__ SlabHashIterator(const SlabHashIterator& Other)
-      : SlabHashCtxt{Other.TheSlabHashCtxt}, TheBucketIterator{Other.TheBucketIterator} {}
+  __device__ SlabHashIterator(
+      const SlabHashIterator<ContainerPolicyT, BucketIteratorT>& Other)
+      : SlabHashCtxt{Other.SlabHashCtxt}, TheBucketIterator{Other.TheBucketIterator} {}
 
-  __device__ SlabHashIterator(const BucketIterator& Other)
+  __device__ SlabHashIterator(const BucketIterator<ContainerPolicyT>& Other)
       : SlabHashCtxt{Other.GetSlabHashCtxt()}, TheBucketIterator{Other} {}
 };
+}  // end namespace iterator
 
 // a forward iterator for the slab hash data structure:
 // currently just specialized for concurrent set
