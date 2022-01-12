@@ -28,43 +28,43 @@
 #include "slab_hash_helper_methods.cuh"
 
 // class declaration:
+#include "slab_iterator.cuh"
+#include "slab_hash_policies.cuh"
 #include "concurrent_map/cmap_class.cuh"
 #include "concurrent_set/cset_class.cuh"
 #include "phase_concurrent_map/pcmap_class.cuh"
-#include "slab_hash_policies.cuh"
-#include "slab_iterator.cuh"
 
 // warp implementations of member functions:
+#include "concurrent_map/warp/count.cuh"
 #include "concurrent_map/warp/delete.cuh"
 #include "concurrent_map/warp/insert.cuh"
 #include "concurrent_map/warp/search.cuh"
-#include "concurrent_map/warp/count.cuh"
 #include "concurrent_map/warp/update.cuh"
 
 #include "concurrent_set/cset_warp_operations.cuh"
 
+#include "phase_concurrent_map/warp/count.cuh"
 #include "phase_concurrent_map/warp/delete.cuh"
 #include "phase_concurrent_map/warp/insert.cuh"
 #include "phase_concurrent_map/warp/search.cuh"
-#include "phase_concurrent_map/warp/count.cuh"
 #include "phase_concurrent_map/warp/update.cuh"
 
 // helper kernels:
 #include "concurrent_map/device/build.cuh"
 #include "concurrent_map/device/concurrent_kernel.cuh"
+#include "concurrent_map/device/count_kernel.cuh"
 #include "concurrent_map/device/delete_kernel.cuh"
 #include "concurrent_map/device/misc_kernels.cuh"
 #include "concurrent_map/device/search_kernel.cuh"
-#include "concurrent_map/device/count_kernel.cuh"
 #include "concurrent_map/device/update_kernels.cuh"
 
 #include "concurrent_set/cset_helper_kernels.cuh"
 
 #include "phase_concurrent_map/device/build.cuh"
 #include "phase_concurrent_map/device/concurrent_kernel.cuh"
+#include "phase_concurrent_map/device/count_kernel.cuh"
 #include "phase_concurrent_map/device/delete_kernel.cuh"
 #include "phase_concurrent_map/device/search_kernels.cuh"
-#include "phase_concurrent_map/device/count_kernel.cuh"
 #include "phase_concurrent_map/device/update_kernels.cuh"
 
 // implementations:
