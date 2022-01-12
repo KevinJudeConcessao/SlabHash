@@ -123,24 +123,54 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
            bucket_id * ConcurrentSetT<KeyT>::BASE_UNIT_SIZE + laneId;
   }
 
-  using Iterator = iterator::SlabIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
-  using BucketIterator = iterator::BucketIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
-  using ResultT = iterator::ResultT<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
+  using BucketIteratorBase =
+      iterator::BucketIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
+  template <typename BucketIteratorT>
+  using IteratorBase =
+      iterator::SlabHashIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>, BucketIteratorT>;
+
+  struct BucketIterator : public BucketIteratorBase {
+    __device__ BucketIterator(
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
+            TheSlabHashCtxt,
+        uint32_t TheBucketId,
+        uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER,
+        uint32_t* ThePrevSlabNextLanePtr = nullptr)
+        : BucketIteratorBase{TheSlabHashCtxt,
+                             TheBucketId,
+                             TheAllocatorAddr,
+                             ThePrevSlabNextLanePtr} {}
+  };
+
+  struct Iterator : public IteratorBase<BucketIterator> {
+    __device__ Iterator(
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
+            TheSlabHashCtxt,
+        uint32_t TheBucketId,
+        uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER,
+        uint32_t* ThePrevSlabNextLanePtr = nullptr)
+        : IteratorBase<BucketIterator>{TheSlabHashCtxt,
+                                       TheBucketId,
+                                       TheAllocatorAddr,
+                                       ThePrevSlabNextLanePtr} {}
+  };
+
+  using ResultT = iterator::ResultT<BucketIterator>;
 
   __device__ Iterator Begin() {
-    return Iterator(*this, 0, ConcurrentSetT::A_INDEX_POINTER);
+    return Iterator(*this, 0, ConcurrentSetT<KeyT>::A_INDEX_POINTER);
   }
 
   __device__ Iterator End() {
-    return Iterator(*this, num_buckets_, ConcurrentSetT::A_INDEX_POINTER);
+    return Iterator(*this, num_buckets_, ConcurrentSetT<KeyT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator BeginAt(uint32_t BucketId) {
-    return BucketIterator(*this, BucketId, ConcurrentSetT::A_INDEX_POINTER);
+    return BucketIterator(*this, BucketId, ConcurrentSetT<KeyT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator EndAt(uint32_t BucketId) {
-    return BucketIterator(*this, BucketId, ConcurrentSetT::EMPTY_INDEX_POINTER);
+    return BucketIterator(*this, BucketId, ConcurrentSetT<KeyT>::EMPTY_INDEX_POINTER);
   }
 
   /* Semantics of the iterator based operations

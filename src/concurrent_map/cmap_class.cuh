@@ -120,14 +120,14 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
   // the slab hash; if the key is found, the value is updated to with a new value
 
   template <typename FilterTy>
-  __device__ __forceinline__ UpsertStatusKind upsertPair(
-      bool& to_be_upserted,
-      const uint32_t& laneId,
-      const KeyT& myKey,
-      const ValueT& myValue,
-      const uint32_t bucket_id,
-      typename AllocPolicy::AllocatorContextT& local_allocator_context,
-      FilterTy* Filter = nullptr);
+  __device__ __forceinline__ UpsertStatusKind
+  upsertPair(bool& to_be_upserted,
+             const uint32_t& laneId,
+             const KeyT& myKey,
+             const ValueT& myValue,
+             const uint32_t bucket_id,
+             typename AllocPolicy::AllocatorContextT& local_allocator_context,
+             FilterTy* Filter = nullptr);
 
   // threads in a warp cooperate with each other to search for keys
   // if found, it returns the corresponding value, else SEARCH_NOT_FOUND
@@ -172,23 +172,56 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
            bucket_id * ConcurrentMapT<KeyT, ValueT>::BASE_UNIT_SIZE + laneId;
   }
 
-  using Iterator = iterator::SlabIterator<ConcurrentMapPolicy<KeyT, AllocPolicy>>;
-  using BucketIterator = iterator::BucketIterator<ConcurrentMapPolicy<KeyT, AllocPolicy>>;
+  using BucketIteratorBase =
+      iterator::BucketIterator<ConcurrentMapPolicy<KeyT, ValueT, AllocPolicy>>;
+  template <typename BucketIteratorT>
+  using IteratorBase =
+      iterator::SlabHashIterator<ConcurrentMapPolicy<KeyT, ValueT, AllocPolicy>,
+                                 BucketIteratorT>;
+
+  struct BucketIterator : public BucketIteratorBase {
+    __device__ BucketIterator(
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>&
+            TheSlabHashCtxt,
+        uint32_t TheBucketId,
+        uint32_t TheAllocatorAddr = ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER,
+        uint32_t* ThePrevSlabNextLanePtr = nullptr)
+        : BucketIteratorBase{TheSlabHashCtxt,
+                             TheBucketId,
+                             TheAllocatorAddr,
+                             ThePrevSlabNextLanePtr} {}
+  };
+
+  struct Iterator : public IteratorBase<BucketIterator> {
+    __device__ Iterator(
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>&
+            TheSlabHashCtxt,
+        uint32_t TheBucketId,
+        uint32_t TheAllocatorAddr = ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER,
+        uint32_t* ThePrevSlabNextLanePtr = nullptr)
+        : IteratorBase<BucketIterator>{TheSlabHashCtxt,
+                                       TheBucketId,
+                                       TheAllocatorAddr,
+                                       ThePrevSlabNextLanePtr} {}
+  };
+
+  using ResultT = iterator::ResultT<BucketIterator>;
 
   __device__ Iterator Begin() {
-    return Iterator(*this, 0, ConcurrentMapT::A_INDEX_POINTER);
+    return Iterator(*this, 0, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ Iterator End() {
-    return Iterator(*this, num_buckets_, ConcurrentMapT::A_INDEX_POINTER);
+    return Iterator(*this, num_buckets_, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator BeginAt(uint32_t BucketId) {
-    return BucketIterator(*this, BucketId, ConcurrentMapT::A_INDEX_POINTER);
+    return BucketIterator(*this, BucketId, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator EndAt(uint32_t BucketId) {
-    return BucketIterator(*this, BucketId, ConcurrentMapT::EMPTY_INDEX_POINTER);
+    return BucketIterator(
+        *this, BucketId, ConcurrentMapT<KeyT, ValueT>::EMPTY_INDEX_POINTER);
   }
 
  private:

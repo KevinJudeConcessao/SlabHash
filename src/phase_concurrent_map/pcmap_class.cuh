@@ -175,24 +175,58 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurre
     return reinterpret_cast<uint32_t*>(&BucketHeadSlabs[BucketID]) + LaneID;
   }
 
-  using Iterator = iterator::SlabIterator<PhaseConcurrentMapPolicy<KeyT, AllocPolicy>>;
-  using BucketIterator =
-      iterator::BucketIterator<PhaseConcurrentMapPolicy<KeyT, AllocPolicy>>;
+  using BucketIteratorBase =
+      iterator::BucketIterator<PhaseConcurrentMapPolicy<KeyT, ValueT, AllocPolicy>>;
+  template <typename BucketIteratorT>
+  using IteratorBase =
+      iterator::SlabHashIterator<PhaseConcurrentMapPolicy<KeyT, ValueT, AllocPolicy>,
+                                 BucketIteratorT>;
+
+  struct BucketIterator : public BucketIteratorBase {
+    __device__ BucketIterator(
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>&
+            TheSlabHashCtxt,
+        uint32_t TheBucketId,
+        uint32_t TheAllocatorAddr = PhaseConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER,
+        uint32_t* ThePrevSlabNextLanePtr = nullptr)
+        : BucketIteratorBase{TheSlabHashCtxt,
+                             TheBucketId,
+                             TheAllocatorAddr,
+                             ThePrevSlabNextLanePtr} {}
+  };
+
+  struct Iterator : public IteratorBase<BucketIterator> {
+    __device__ Iterator(
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>&
+            TheSlabHashCtxt,
+        uint32_t TheBucketId,
+        uint32_t TheAllocatorAddr = PhaseConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER,
+        uint32_t* ThePrevSlabNextLanePtr = nullptr)
+        : IteratorBase<BucketIterator>{TheSlabHashCtxt,
+                                       TheBucketId,
+                                       TheAllocatorAddr,
+                                       ThePrevSlabNextLanePtr} {}
+  };
+
+  using ResultT = iterator::ResultT<BucketIterator>;
 
   __device__ Iterator Begin() {
-    return Iterator(*this, 0, PhaseConcurrentMapT::A_INDEX_POINTER);
+    return Iterator(*this, 0, PhaseConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ Iterator End() {
-    return Iterator(*this, NumberOfBuckets, PhaseConcurrentMapT::A_INDEX_POINTER);
+    return Iterator(
+        *this, NumberOfBuckets, PhaseConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator BeginAt(uint32_t BucketId) {
-    return BucketIterator(*this, BucketId, PhaseConcurrentMapT::A_INDEX_POINTER);
+    return BucketIterator(
+        *this, BucketId, PhaseConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator EndAt(uint32_t BucketId) {
-    return BucketIterator(*this, BucketId, PhaseConcurrentMapT::EMPTY_INDEX_POINTER);
+    return BucketIterator(
+        *this, BucketId, PhaseConcurrentMapT<KeyT, ValueT>::EMPTY_INDEX_POINTER);
   }
 
  private:
@@ -280,7 +314,7 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
   struct {
     uint32_t HashX;
     uint32_t HashY;
-  } HashFunctionParameters;
+  } HashFunction;
 
   GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap>
       GpuContext;
@@ -297,7 +331,7 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
       , BucketHeadSlabs{nullptr}
       , BucketHeadSlabsValue{nullptr}
       , BucketHeadSlabsMutex{nullptr}
-      , HashFunctionParameters{0u, 0u}
+      , HashFunction{0u, 0u}
       , GpuContext{} {
     int DeviceCount = 0;
 
@@ -332,14 +366,25 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::PhaseConcurrentMap> 
     std::uniform_int_distribution<uint32_t> Distribution(
         1, std::numeric_limits<uint32_t>::max());
 
-    HashFunctionParameters = IdentityHash ? {0u, 0u} : {Distribution(), Distribution()};
+    if (IdentityHash) {
+      HashFunction.HashX = HashFunction.HashY = 0u;
+    } else {
+      HashFunction.HashX = Distribution(RandomNumberGenerator);
+      HashFunction.HashY = Distribution(RandomNumberGenerator);
+    }
 
     GpuContext.NumberOfBuckets = NumberOfBuckets;
-    GpuContext.HashX = HashFunctionParameters.HashX;
-    GpuContext.HashY = HashFunctionParameters.HashY;
-    GpuContext.BucketHeadSlabs = reintepret_cast<> BucketHeadSlabs;
-    GpuContext.BucketHeadSlabsValue = BucketHeadSlabsValue;
-    GpuContext.BucketHeadSlabsMutex = BucketHeadSlabsMutex;
+    GpuContext.HashX = HashFunction.HashX;
+    GpuContext.HashY = HashFunction.HashY;
+    GpuContext.BucketHeadSlabs =
+        reinterpret_cast<typename PhaseConcurrentMapT<KeyT, ValueT>::SlabTypeT*>(
+            BucketHeadSlabs);
+    GpuContext.BucketHeadSlabsValue =
+        reinterpret_cast<typename PhaseConcurrentMapT<KeyT, ValueT>::ValueSlabTypeT*>(
+            BucketHeadSlabsValue);
+    GpuContext.BucketHeadSlabsMutex =
+        reinterpret_cast<typename PhaseConcurrentMapT<KeyT, ValueT>::MutexSlabTypeT*>(
+            BucketHeadSlabsMutex);
     GpuContext.TheAllocatorContext = *TheAllocator->getAllocatorContext();
   }
 };
