@@ -27,6 +27,10 @@
 //=======================================
 #define DEVICE_ID 0
 
+using AllocPolicy = LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>;
+
 int main(int argc, char** argv) {
   //=========
   int devCount;
@@ -93,7 +97,7 @@ int main(int argc, char** argv) {
     std::swap(h_query[i], h_query[q_index[i]]);
     std::swap(h_correct_result[i], h_correct_result[q_index[i]]);
   }
-  gpu_hash_table<KeyT, KeyT, SlabHashTypeT::ConcurrentSet>
+  gpu_hash_table<KeyT, KeyT, AllocPolicy, SlabHashTypeT::ConcurrentSet>
       hash_table(num_keys, num_buckets, DEVICE_ID, seed, false);
 
   float build_time =

@@ -23,6 +23,10 @@
 #include "slab_hash.cuh"
 #define DEVICE_ID 0
 
+using AllocPolicy = LightAllocatorPolicy<slab_alloc_par::log_num_mem_blocks,
+                                         slab_alloc_par::num_super_blocks,
+                                         slab_alloc_par::num_replicas>;
+
 int main(int argc, char** argv) {
   //=========
   int devCount;
@@ -35,8 +39,8 @@ int main(int argc, char** argv) {
   printf("Device: %s\n", devProp.name);
 
   auto my_hash_table =
-      new gpu_hash_table<uint32_t, uint32_t,
-                         SlabHashTypeT::ConcurrentMap>(100, 10, DEVICE_ID,/*seed = */ 1);
+      new gpu_hash_table<uint32_t, uint32_t, AllocPolicy, SlabHashTypeT::ConcurrentMap>(
+          100, 10, DEVICE_ID, /*seed = */ 1);
 
   std::vector<uint32_t> h_key{10, 5, 1};
   std::vector<uint32_t> h_value{100, 50, 10};
