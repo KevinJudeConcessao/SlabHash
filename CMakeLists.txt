@@ -6,7 +6,7 @@ find_package(CUDA 8.0 REQUIRED)
 option(CMAKE_VERBOSE_MAKEFILE ON)
 option(DGTEST,  "DGTEST"  ON)
 
-set(CUDA_NVCC_FLAGS -std=c++14 -Wno-deprecated-gpu-targets)
+set(CUDA_NVCC_FLAGS -std=c++14 -Wno-deprecated-gpu-targets -ccbin gcc-7)
 set (CMAKE_CXX_STANDARD 11)
 
 if (CUDA_VERBOSE_PTXAS)
