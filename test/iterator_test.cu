@@ -72,6 +72,47 @@ __global__ void print_table(
   }
 }
 
+__device__ uint Counter = 0;
+
+template <typename KeyT>
+__global__ void print_table(
+    GpuSlabHashContext<KeyT, KeyT, AllocPolicy, SlabHashTypeT::ConcurrentSet> SlabHash,
+    int) {
+  uint32_t ThreadId = threadIdx.x + blockDim.x * blockIdx.x;
+  uint32_t WarpId = ThreadId >> 5;
+
+  uint32_t LaneId = threadIdx.x & 0x1F;
+  if (WarpId >= SlabHash.getNumBuckets())
+    return;
+
+  SlabHash.getAllocatorContext().initAllocator(ThreadId, LaneId);
+
+  typename decltype(SlabHash)::Iterator Iterator = SlabHash.Begin(); 
+  typename decltype(SlabHash)::Iterator Last = SlabHash.End();
+
+  if (WarpId == 0) {
+    while (Iterator != Last) {
+      uint32_t Data = *Iterator.GetPointer(LaneId);
+
+      while (Counter < 32) {
+        if (LaneId == Counter) 
+          printf("- %x -", Data);
+
+        __syncwarp();
+        if (LaneId == Counter)
+          atomicInc(&Counter, 1);
+        __syncwarp();
+      }
+
+      if (LaneId == 0) {
+        printf("\n-------------------\n");
+      }
+
+      ++ Iterator;
+    }
+  }
+}
+
 //=======================================
 int main(int argc, char** argv) {
   //=========
@@ -108,7 +149,7 @@ int main(int argc, char** argv) {
   const uint32_t num_blocks = 1;
   const uint32_t num_threads = 128;
   print_table<KeyT>
-      <<<num_blocks, num_threads>>>(hash_table.slab_hash_->getSlabHashContext());
+      <<<num_blocks, num_threads>>>(hash_table.slab_hash_->getSlabHashContext(), 0);
 
   return 0;
 }
