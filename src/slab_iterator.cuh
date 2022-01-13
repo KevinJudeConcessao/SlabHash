@@ -35,23 +35,29 @@ class BucketIterator {
  public:
   __device__ __forceinline__ BucketIterator& operator++() {
     uint32_t LaneId = threadIdx.x & 0x1F;
-    if (AllocatorAddr == SlabInfoT::EMPTY_INDEX_POINTER)
-      return;
+    if (AllocatorAddr != SlabInfoT::EMPTY_INDEX_POINTER) {
+      if (LaneId == SlabInfoT::NEXT_PTR_LANE) {
+        PtrPrevSlabNextLane =
+            (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
+                ? SlabHashCtxt.getPointerFromBucket(BucketId, LaneId)
+                : SlabHashCtxt.getPointerFromSlab(AllocatorAddr, LaneId);
+        AllocatorAddr = *PtrPrevSlabNextLane;
+      }
 
-    if (LaneId == SlabInfoT::NEXT_PTR_LANE) {
-      PtrPrevSlabNextLane = (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
-                                ? *SlabHashCtxt.getPointerFromBucket(BucketId, LaneId)
-                                : *SlabHashCtxt.getPointerFromSlab(AllocatorAddr, LaneId);
-      AllocatorAddr = *PtrPrevSlabNextLane;
+      PtrPrevSlabNextLane = reinterpret_cast<uint32_t*>(
+          __shfl_sync(0xFFFFFFFF,
+                      reinterpret_cast<uint64_t>(PtrPrevSlabNextLane),
+                      SlabInfoT::NEXT_PTR_LANE,
+                      32));
+      AllocatorAddr =
+          __shfl_sync(0xFFFFFFFF, AllocatorAddr, SlabInfoT::NEXT_PTR_LANE, 32);
     }
-
-    PtrPrevSlabNextLane =
-        __shfl_sync(0xFFFFFFFF, PtrPrevSlabNextLane, SlabInfoT::NEXT_PTR_LANE, 32);
-    AllocatorAddr = __shfl_sync(0xFFFFFFFF, AllocatorAddr, SlabInfoT::NEXT_PTR_LANE, 32);
+    
+    return (*this);
   }
 
-  __device__ __forceinline__ BucketIterator operator++(int) {
-    BucketIterator OldIterator{*this};
+  __device__ __forceinline__ BucketIterator<ContainerPolicyT> operator++(int) {
+    BucketIterator<ContainerPolicyT> OldIterator{*this};
     ++(*this);
     return OldIterator;
   }
@@ -102,10 +108,10 @@ class BucketIterator {
       , AllocatorAddr{TheAllocatorAddr}
       , PtrPrevSlabNextLane{ThePrevSlabNextLanePtr} {}
 
-  __device__ BucketIterator(const BucketIterator<ContainerPolicyT>& Other) 
+  __device__ BucketIterator(const BucketIterator<ContainerPolicyT>& Other)
       : SlabHashCtxt{Other.SlabHashCtxt}
-      , BucketId{Other.TheBucketId}
-      , AllocatorAddr{Other.TheAllocatorAddr}
+      , BucketId{Other.BucketId}
+      , AllocatorAddr{Other.AllocatorAddr}
       , PtrPrevSlabNextLane{Other.PtrPrevSlabNextLane} {}
 
   __device__ __forceinline__ typename ContainerPolicyT::SlabHashContextT&
@@ -137,14 +143,15 @@ class SlabHashIterator {
   __device__ __forceinline__ SlabHashIterator<ContainerPolicyT, BucketIteratorT>&
   operator++() {
     uint32_t BucketId = TheBucketIterator.GetBucketId();
-    if (BucketId == SlabHashCtxt.getNumBuckets())
-      return;
-
-    ++TheBucketIterator;
-    if (TheBucketIterator.GetAllocatorAddr() == SlabInfoT::EMPTY_INDEX_POINTER) {
-      TheBucketIterator = BucketIterator<ContainerPolicyT>(
-          SlabHashCtxt, BucketId + 1, SlabInfoT::A_INDEX_POINTER);
+    if (BucketId < SlabHashCtxt.getNumBuckets()) {
+      ++TheBucketIterator;
+      if (TheBucketIterator.GetAllocatorAddr() == SlabInfoT::EMPTY_INDEX_POINTER) {
+        TheBucketIterator = BucketIterator<ContainerPolicyT>(
+            SlabHashCtxt, BucketId + 1, SlabInfoT::A_INDEX_POINTER);
+      }
     }
+
+    return (*this);
   }
 
   __device__ __forceinline__ SlabHashIterator<ContainerPolicyT, BucketIteratorT>
@@ -154,10 +161,10 @@ class SlabHashIterator {
     return OldIterator;
   }
 
-  __device__ __forceinline__ typename ContainerPolicyT::KeyT* getPointer(
+  __device__ __forceinline__ typename ContainerPolicyT::KeyT* GetPointer(
       uint32_t LaneID = 0) {
     return reinterpret_cast<typename ContainerPolicyT::KeyT*>(
-        TheBucketIterator.getPointer(LaneID));
+        TheBucketIterator.GetPointer(LaneID));
   }
 
   __device__ __forceinline__ bool operator==(

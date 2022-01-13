@@ -131,7 +131,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
 
   struct BucketIterator : public BucketIteratorBase {
     __device__ BucketIterator(
-        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
+        GpuSlabHashContext<KeyT, KeyT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
             TheSlabHashCtxt,
         uint32_t TheBucketId,
         uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER,
@@ -144,7 +144,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
 
   struct Iterator : public IteratorBase<BucketIterator> {
     __device__ Iterator(
-        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
+        GpuSlabHashContext<KeyT, KeyT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
             TheSlabHashCtxt,
         uint32_t TheBucketId,
         uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER,
