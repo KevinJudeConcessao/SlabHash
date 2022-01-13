@@ -21,8 +21,8 @@ using ConcurrentSetPolicy = ContainerPolicy<
     KeyTy,
     void,
     SlabAllocPolicyTy,
-    GpuSlabHash<KeyTy, void, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
-    GpuSlabHashContext<KeyTy, void, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
+    GpuSlabHash<KeyTy, KeyTy, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
+    GpuSlabHashContext<KeyTy, KeyTy, SlabAllocPolicyTy, SlabHashTypeT::ConcurrentSet>,
     ConcurrentSetT<KeyTy>>;
 
 template <typename KeyTy, typename ValueTy, typename SlabAllocPolicyTy>
