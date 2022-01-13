@@ -100,11 +100,12 @@ __global__ void print_table(
 
         __syncwarp();
         if (LaneId == Counter)
-          atomicInc(&Counter, 1);
+          ++ Counter;
         __syncwarp();
       }
 
       if (LaneId == 0) {
+	Counter = 0;
         printf("\n-------------------\n");
       }
 
@@ -148,6 +149,10 @@ int main(int argc, char** argv) {
 
   const uint32_t num_blocks = 1;
   const uint32_t num_threads = 128;
+  print_table<KeyT><<<num_blocks, num_threads>>>(hash_table.slab_hash_->getSlabHashContext());
+ 
+  printf("-----------------------------------------------\n");
+
   print_table<KeyT>
       <<<num_blocks, num_threads>>>(hash_table.slab_hash_->getSlabHashContext(), 0);
 
