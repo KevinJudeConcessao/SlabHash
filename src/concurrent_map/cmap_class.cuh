@@ -35,13 +35,13 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
       : num_buckets_(0), hash_x_(0), hash_y_(0), d_table_(nullptr) {}
 
 #pragma hd_warning_disable
-  __host__ __device__ GpuSlabHashContext(
+  __host__ __device__ GpuSlabHashContext(const 
       GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>& rhs) {
-    num_buckets_ = rhs.getNumBuckets();
-    hash_x_ = rhs.getHashX();
-    hash_y_ = rhs.getHashY();
-    d_table_ = rhs.getDeviceTablePointer();
-    global_allocator_ctx_ = rhs.getAllocatorContext();
+    num_buckets_ = rhs.num_buckets_;
+    hash_x_ = rhs.hash_x_;
+    hash_y_ = rhs.hash_y_;
+    d_table_ = rhs.d_table_;
+    global_allocator_ctx_ = rhs.global_allocator_ctx_;
   }
 
 #pragma hd_warning_disable

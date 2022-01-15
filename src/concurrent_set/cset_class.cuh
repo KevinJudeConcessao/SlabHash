@@ -37,12 +37,13 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
 
 #pragma hd_warning_disable
   __host__ __device__ GpuSlabHashContext(
-      GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>& rhs) {
-    num_buckets_ = rhs.getNumBuckets();
-    hash_x_ = rhs.getHashX();
-    hash_y_ = rhs.getHashY();
-    d_table_ = rhs.getDeviceTablePointer();
-    global_allocator_ctx_ = rhs.getAllocatorContext();
+      const GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>&
+          rhs) {
+    num_buckets_ = rhs.num_buckets_;
+    hash_x_ = rhs.hash_x_;
+    hash_y_ = rhs.hash_y_;
+    d_table_ = rhs.d_table_;
+    global_allocator_ctx_ = rhs.global_allocator_ctx_;
   }
 #pragma hd_warning_disable
   __host__ __device__ ~GpuSlabHashContext() {}
@@ -170,8 +171,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
   }
 
   __device__ BucketIterator EndAt(uint32_t BucketId) {
-    return BucketIterator(
-        this, BucketId, ConcurrentSetT<KeyT>::EMPTY_INDEX_POINTER);
+    return BucketIterator(this, BucketId, ConcurrentSetT<KeyT>::EMPTY_INDEX_POINTER);
   }
 
   /* Semantics of the iterator based operations
