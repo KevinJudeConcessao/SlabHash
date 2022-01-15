@@ -35,8 +35,9 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
       : num_buckets_(0), hash_x_(0), hash_y_(0), d_table_(nullptr) {}
 
 #pragma hd_warning_disable
-  __host__ __device__ GpuSlabHashContext(const 
-      GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>& rhs) {
+  __host__ __device__ GpuSlabHashContext(
+      const GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>&
+          rhs) {
     num_buckets_ = rhs.num_buckets_;
     hash_x_ = rhs.hash_x_;
     hash_y_ = rhs.hash_y_;
@@ -330,6 +331,21 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> {
     gpu_context_.initParameters(
         num_buckets_, hf_.x, hf_.y, d_table_, dynamic_allocator_->getContextPtr());
   }
+
+  GpuSlabHash(
+      const GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>& Other)
+      : hf_{Other.hf_}
+      , num_buckets_{Other.num_buckets_}
+      , d_table_{Other.d_table_}
+      , slab_unit_size_{Other.slab_unit_size_}
+      , gpu_context_{Other.gpu_context_}
+      , dynamic_allocator_{Other.dynamic_allocator_}
+      , device_idx_{Other.device_idx_} {}
+
+  // const pointer to an allocator that all instances of slab hash are going to
+  // use. The allocator itself is not owned by this class
+  typename AllocPolicy::DynamicAllocatorT* dynamic_allocator_;
+  uint32_t device_idx_;
 
   ~GpuSlabHash() {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
