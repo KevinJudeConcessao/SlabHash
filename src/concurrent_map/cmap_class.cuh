@@ -342,11 +342,6 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> {
       , dynamic_allocator_{Other.dynamic_allocator_}
       , device_idx_{Other.device_idx_} {}
 
-  // const pointer to an allocator that all instances of slab hash are going to
-  // use. The allocator itself is not owned by this class
-  typename AllocPolicy::DynamicAllocatorT* dynamic_allocator_;
-  uint32_t device_idx_;
-
   ~GpuSlabHash() {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
     CHECK_CUDA_ERROR(cudaFree(d_table_));
