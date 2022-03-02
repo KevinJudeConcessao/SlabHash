@@ -182,7 +182,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
 
   struct BucketIterator : public BucketIteratorBase {
     __device__ BucketIterator(
-        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>&
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>*
             TheSlabHashCtxt,
         uint32_t TheBucketId,
         uint32_t TheAllocatorAddr = ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER,
@@ -195,7 +195,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
 
   struct Iterator : public IteratorBase<BucketIterator> {
     __device__ Iterator(
-        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>&
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>*
             TheSlabHashCtxt,
         uint32_t TheBucketId,
         uint32_t TheAllocatorAddr = ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER,
@@ -209,20 +209,20 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
   using ResultT = iterator::ResultT<BucketIterator>;
 
   __device__ Iterator Begin() {
-    return Iterator(*this, 0, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
+    return Iterator(this, 0, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ Iterator End() {
-    return Iterator(*this, num_buckets_, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
+    return Iterator(this, num_buckets_, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator BeginAt(uint32_t BucketId) {
-    return BucketIterator(*this, BucketId, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
+    return BucketIterator(this, BucketId, ConcurrentMapT<KeyT, ValueT>::A_INDEX_POINTER);
   }
 
   __device__ BucketIterator EndAt(uint32_t BucketId) {
     return BucketIterator(
-        *this, BucketId, ConcurrentMapT<KeyT, ValueT>::EMPTY_INDEX_POINTER);
+        this, BucketId, ConcurrentMapT<KeyT, ValueT>::EMPTY_INDEX_POINTER);
   }
 
  private:
@@ -345,6 +345,11 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap> {
   ~GpuSlabHash() {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
     CHECK_CUDA_ERROR(cudaFree(d_table_));
+  }
+
+  GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>&
+  getSlabHashContext() {
+    return gpu_context_;
   }
 
   // returns some debug information about the slab hash

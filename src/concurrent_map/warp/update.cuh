@@ -114,11 +114,11 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::ups
 
     uint32_t SourceLane = __ffs(WorkQueue) - 1;
     uint32_t SourceBucket = __shfl_sync(0xFFFFFFFF, BucketID, SourceLane, 32);
-    uint32_t ReqKey =
-        __shfl_sync(0xFFFFFFFF,
-                    *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey))),
-                    SourceLane,
-                    32);
+    uint32_t ReqKey = __shfl_sync(
+        0xFFFFFFFF,
+        *(reinterpret_cast<const uint32_t*>(reinterpret_cast<const uint8_t*>(&TheKey))),
+        SourceLane,
+        32);
 
     uint32_t Data = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
                         ? *getPointerFromBucket(SourceBucket, LaneID)
@@ -157,13 +157,14 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::ups
                                     ? getPointerFromBucket(SourceBucket, InsertLane)
                                     : getPointerFromSlab(CurrentSlabPtr, InsertLane);
 
-          OldKeyValuePair = atomicCAS(
-              reinterpret_cast<uint64_t*>(InsertPtr),
-              EMPTY_PAIR_64,
-              (static_cast<uint64_t>(
-                   *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheValue)))
-               << 32) |
-                  *(reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(&TheKey))));
+          OldKeyValuePair =
+              atomicCAS(reinterpret_cast<unsigned long long int*>(InsertPtr),
+                        EMPTY_PAIR_64,
+                        (static_cast<uint64_t>(*reinterpret_cast<const uint32_t*>(
+                             reinterpret_cast<const uint8_t*>(&TheValue)))
+                         << 32) |
+                            *(reinterpret_cast<const uint32_t*>(
+                                reinterpret_cast<const uint8_t*>(&TheKey))));
 
           if (OldKeyValuePair == EMPTY_PAIR_64) {
             ToBeUpserted = false;
@@ -184,12 +185,13 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::ups
                                 : FilterTy()(CurrentValueInSlab, TheValue);
 
         if (FilterStatus) {
-          OldKeyValuePair = atomicCAS(UpdatePtr,
-                                      CurrentKeyValuePair,
-                                      (static_cast<uint64_t>(*reinterpret_cast<uint32_t*>(
-                                           reinterpret_cast<uint8_t*>(&TheValue)))
-                                       << 32) |
-                                          TheKey);
+          OldKeyValuePair =
+              atomicCAS(reinterpret_cast<unsigned long long int*>(UpdatePtr),
+                        CurrentKeyValuePair,
+                        (static_cast<uint64_t>(*reinterpret_cast<const uint32_t*>(
+                             reinterpret_cast<const uint8_t*>(&TheValue)))
+                         << 32) |
+                            TheKey);
 
           if (OldKeyValuePair == CurrentKeyValuePair) {
             ToBeUpserted = false;
