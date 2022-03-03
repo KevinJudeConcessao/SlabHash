@@ -316,8 +316,11 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet> {
   }
 
   ~GpuSlabHash() {
+  // TODO: Inspect CUDA Error Invalid Argument
+  #if 0
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
     CHECK_CUDA_ERROR(cudaFree(d_table_));
+  #endif
   }
 
   // returns some debug information about the slab hash
