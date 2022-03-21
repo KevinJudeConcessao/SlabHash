@@ -179,7 +179,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::del
         __ballot_sync(0xFFFFFFFF, Data == ReqKey) & SlabHashT::REGULAR_NODE_KEY_MASK;
 
     if (IsFound) {
-      int CandidateLane = __ffs(IsFound) - 1;
+      int CandidateLane = __ffs(IsFound & SlabHashT::REGULAR_NODE_KEY_MASK) - 1;
 
       if (LaneID == SourceLane) {
         uint32_t* DestPtr = (CurrentSlabPtr == SlabHashT::A_INDEX_POINTER)
@@ -190,6 +190,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::del
         DeletionStatus = (OldKey == TheKey);
         ToBeDeleted = false;
       }
+      IsHeadSlab = true;
     } else {
       uint32_t NextSlabPtr = __shfl_sync(0xFFFFFFFF, Data, SlabHashT::NEXT_PTR_LANE, 32);
 
@@ -198,6 +199,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::del
           DeletionStatus = false;
           ToBeDeleted = false;
         }
+        IsHeadSlab = true;
       } else {
         CurrentSlabPtr = NextSlabPtr;
         IsHeadSlab = false;
