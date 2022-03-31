@@ -133,7 +133,7 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap
   // threads in a warp cooperate with each other to search for keys
   // if found, it returns the corresponding value, else SEARCH_NOT_FOUND
   // is returned
-  __device__ __forceinline__ void searchKey(bool& to_be_searched,
+  __device__ __forceinline__ bool searchKey(bool& to_be_searched,
                                             const uint32_t& laneId,
                                             const KeyT& myKey,
                                             ValueT& myValue,

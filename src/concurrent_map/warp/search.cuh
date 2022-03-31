@@ -20,7 +20,7 @@
 // Individual Search Unit:
 //================================================
 template <typename KeyT, typename ValueT, typename AllocPolicy>
-__device__ __forceinline__ void
+__device__ __forceinline__ bool
 GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::searchKey(
     bool& to_be_searched,
     const uint32_t& laneId,
@@ -31,6 +31,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::sea
   uint32_t work_queue = 0;
   uint32_t last_work_queue = work_queue;
   uint32_t next = SlabHashT::A_INDEX_POINTER;
+  bool search_status = true;
 
   while ((work_queue = __ballot_sync(0xFFFFFFFF, to_be_searched))) {
     next = (last_work_queue != work_queue) ? SlabHashT::A_INDEX_POINTER
@@ -54,6 +55,7 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::sea
         if (laneId == src_lane) {
           myValue = static_cast<ValueT>(SEARCH_NOT_FOUND);
           to_be_searched = false;
+          search_status = false;
         }
       } else {
         next = next_ptr;
@@ -64,10 +66,12 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::sea
         myValue = *reinterpret_cast<const ValueT*>(
             reinterpret_cast<const unsigned char*>(&found_value));
         to_be_searched = false;
+        search_status = true;
       }
     }
     last_work_queue = work_queue;
   }
+  return search_status;
 }
 
 //================================================
