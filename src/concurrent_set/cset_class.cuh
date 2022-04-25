@@ -296,8 +296,47 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet> {
 
     // allocating initial buckets:
     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_table_, slab_unit_size_ * num_buckets_));
-
     CHECK_CUDA_ERROR(cudaMemset(d_table_, 0xFF, slab_unit_size_ * num_buckets_));
+
+    // creating a random number generator:
+    if (!identity_hash) {
+      std::mt19937 rng(seed ? seed : time(0));
+      hf_.x = rng() % PRIME_DIVISOR_;
+      if (hf_.x < 1)
+        hf_.x = 1;
+      hf_.y = rng() % PRIME_DIVISOR_;
+    } else {
+      hf_ = {0u, 0u};
+    }
+
+    // initializing the gpu_context_:
+    gpu_context_.initParameters(
+        num_buckets_, hf_.x, hf_.y, d_table_, dynamic_allocator_->getContextPtr());
+  }
+
+  GpuSlabHash(int8_t *dtable_ptr, uint32_t *last_updated_slab_ptr, const uint32_t num_buckets,
+              typename AllocPolicy::DynamicAllocatorT* dynamic_allocator,
+              uint32_t device_idx,
+              const time_t seed = 0,
+              const bool identity_hash = false)
+      : num_buckets_(num_buckets)
+      , d_table_(dtable_ptr)
+      , slab_unit_size_(0)
+      , dynamic_allocator_(dynamic_allocator)
+      , device_idx_(device_idx) {
+    assert(dynamic_allocator && "No proper dynamic allocator attached to the slab hash.");
+    assert(sizeof(typename ConcurrentSetT<KeyT>::SlabTypeT) ==
+               (WARP_WIDTH_ * sizeof(uint32_t)) &&
+           "A single slab on a ConcurrentMap should be 128 bytes");
+    int32_t devCount = 0;
+    CHECK_CUDA_ERROR(cudaGetDeviceCount(&devCount));
+    assert(device_idx_ < devCount);
+
+    CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
+
+    slab_unit_size_ =
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::
+            getSlabUnitSize();
 
     // creating a random number generator:
     if (!identity_hash) {
