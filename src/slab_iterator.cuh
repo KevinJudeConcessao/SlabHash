@@ -226,8 +226,16 @@ class UpdateIterator {
           ++BucketId;
         } while ((BucketId < NumBuckets) && (!IsSlabListUpdated[BucketId]));
 
-        if (BucketId < NumBuckets)
+        if (BucketId < NumBuckets) {
           AllocatorAddr = FirstUpdatedSlab[BucketId];
+
+          if (FirstUpdatedLaneId[BucketId] == SlabInfoT::NEXT_PTR_LANE) {
+            AllocatorAddr =
+                (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
+                    ? *(getPointerFromBucket(BucketId, SlabInfoT::NEXT_PTR_LANE))
+                    : *(getPointerFromSlab(AllocatorAddr, SlabInfoT::NEXT_PTR_LANE));
+          }
+        }
 
         TheBucketIterator =
             BucketIterator<ContainerPolicyT>(SlabHashCtxt, BucketId, AllocatorAddr);
