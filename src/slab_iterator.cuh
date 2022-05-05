@@ -232,8 +232,8 @@ class UpdateIterator {
           if (FirstUpdatedLaneId[BucketId] == SlabInfoT::NEXT_PTR_LANE) {
             AllocatorAddr =
                 (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
-                    ? *(getPointerFromBucket(BucketId, SlabInfoT::NEXT_PTR_LANE))
-                    : *(getPointerFromSlab(AllocatorAddr, SlabInfoT::NEXT_PTR_LANE));
+                    ? *(SlabHashCtxt->getPointerFromBucket(BucketId, SlabInfoT::NEXT_PTR_LANE))
+                    : *(SlabHashCtxt->getPointerFromSlab(AllocatorAddr, SlabInfoT::NEXT_PTR_LANE));
           }
         }
 
