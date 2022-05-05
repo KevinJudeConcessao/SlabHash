@@ -87,8 +87,10 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentMap>::ins
                        << 32) |
                           *reinterpret_cast<const uint32_t*>(
                               reinterpret_cast<const unsigned char*>(&myKey)));
-        if (old_key_value_pair == EMPTY_PAIR_64)
+        if (old_key_value_pair == EMPTY_PAIR_64) {
           to_be_inserted = false;  // succesfful insertion
+          is_slablist_updated_[src_bucket] = true;
+        }
       }
     }
     last_work_queue = work_queue;

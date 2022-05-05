@@ -31,7 +31,13 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
 
 #pragma hd_warning_disable
   __device__ __host__ GpuSlabHashContext()
-      : num_buckets_(0), hash_x_(0), hash_y_(0), d_table_(nullptr) {
+      : num_buckets_(0)
+      , hash_x_(0)
+      , hash_y_(0)
+      , d_table_(nullptr)
+      , first_updated_slab_{nullptr}
+      , first_updated_lane_id_{nullptr}
+      , is_slablist_updated_{nullptr} {
     // a single slab on a ConcurrentSet should be 128 bytes
   }
 
@@ -44,6 +50,9 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
     hash_y_ = rhs.hash_y_;
     d_table_ = rhs.d_table_;
     global_allocator_ctx_ = rhs.global_allocator_ctx_;
+    first_updated_slab_ = rhs.first_updated_slab_;
+    first_updated_lane_id_ = rhs.first_updated_lane_id_;
+    is_slablist_updated_ = rhs.is_slablist_updated_;
   }
 #pragma hd_warning_disable
   __host__ __device__ ~GpuSlabHashContext() {}
@@ -58,12 +67,18 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
                                const uint32_t hash_x,
                                const uint32_t hash_y,
                                int8_t* d_table,
-                               typename AllocPolicy::AllocatorContextT* allocator_ctx) {
+                               typename AllocPolicy::AllocatorContextT* allocator_ctx,
+                               uint32_t* first_updated_slab,
+                               uint8_t* first_updated_lane_id,
+                               bool* is_slablist_updated) {
     num_buckets_ = num_buckets;
     hash_x_ = hash_x;
     hash_y_ = hash_y;
     d_table_ = reinterpret_cast<typename ConcurrentSetT<KeyT>::SlabTypeT*>(d_table);
     global_allocator_ctx_ = *allocator_ctx;
+    first_updated_slab_ = first_updated_slab;
+    first_updated_lane_id_ = first_updated_lane_id;
+    is_slablist_updated_ = is_slablist_updated;
   }
 
   __device__ __host__ __forceinline__ typename AllocPolicy::AllocatorContextT&
@@ -74,6 +89,18 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
   __device__ __host__ __forceinline__ typename ConcurrentSetT<KeyT>::SlabTypeT*
   getDeviceTablePointer() {
     return d_table_;
+  }
+
+  __device__ __host__ __forceinline__ uint32_t* getFirstUpdatedSlabPointer() {
+    return first_updated_slab_;
+  }
+
+  __device__ __host__ __forceinline__ uint8_t* getFirstUpdatedLaneIdPointer() {
+    return first_updated_lane_id_;
+  }
+
+  __device__ __host__ __forceinline__ bool* getIsSlablistUpdatedPointer() {
+    return is_slablist_updated_;
   }
 
   __device__ __host__ __forceinline__ uint32_t getNumBuckets() { return num_buckets_; }
@@ -126,21 +153,22 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
 
   using BucketIteratorBase =
       iterator::BucketIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>>;
+
   template <typename BucketIteratorT>
   using IteratorBase =
       iterator::SlabHashIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>, BucketIteratorT>;
+
+  template <typename BucketIteratorT>
+  using UpdateIteratorBase =
+      iterator::UpdateIterator<ConcurrentSetPolicy<KeyT, AllocPolicy>, BucketIteratorT>;
 
   struct BucketIterator : public BucketIteratorBase {
     __device__ BucketIterator(
         GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>*
             TheSlabHashCtxt,
         uint32_t TheBucketId,
-        uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER,
-        uint32_t* ThePrevSlabNextLanePtr = nullptr)
-        : BucketIteratorBase{TheSlabHashCtxt,
-                             TheBucketId,
-                             TheAllocatorAddr,
-                             ThePrevSlabNextLanePtr} {}
+        uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER)
+        : BucketIteratorBase{TheSlabHashCtxt, TheBucketId, TheAllocatorAddr} {}
   };
 
   struct Iterator : public IteratorBase<BucketIterator> {
@@ -148,12 +176,25 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
         GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>*
             TheSlabHashCtxt,
         uint32_t TheBucketId,
-        uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER,
-        uint32_t* ThePrevSlabNextLanePtr = nullptr)
-        : IteratorBase<BucketIterator>{TheSlabHashCtxt,
-                                       TheBucketId,
-                                       TheAllocatorAddr,
-                                       ThePrevSlabNextLanePtr} {}
+        uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER)
+        : IteratorBase<BucketIterator>{TheSlabHashCtxt, TheBucketId, TheAllocatorAddr} {}
+  };
+
+  struct UpdateIterator : public UpdateIteratorBase<BucketIterator> {
+    __device__ UpdateIterator(
+        GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>*
+            TheSlabHashCtxt,
+        uint32_t TheBucketId,
+        uint32_t* FirstUpdatedSlab,
+        uint8_t* FirstUpdatedLaneId,
+        bool* IsSlabListUpdated,
+        uint32_t TheAllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER)
+        : UpdateIteratorBase<BucketIterator>{TheSlabHashCtxt,
+                                             TheBucketId,
+                                             FirstUpdatedSlab,
+                                             FirstUpdatedLaneId,
+                                             IsSlabListUpdated,
+                                             TheAllocatorAddr} {}
   };
 
   using ResultT = iterator::ResultT<BucketIterator>;
@@ -172,6 +213,48 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
 
   __device__ BucketIterator EndAt(uint32_t BucketId) {
     return BucketIterator(this, BucketId, ConcurrentSetT<KeyT>::EMPTY_INDEX_POINTER);
+  }
+
+  __device__ UpdateIterator UpdateIterBegin() {
+    uint32_t AllocatorAddr = ConcurrentSetT<KeyT>::A_INDEX_POINTER;
+    uint32_t BucketId = 0;
+    uint32_t ThreadId = blockDim.x * blockIdx.x + threadIdx.x;
+    uint32_t LaneId = ThreadId & 0x1F;
+
+    if (LaneId == 0) {
+      while ((BucketId < num_buckets_) && (!is_slablist_updated_[BucketId]))
+        ++BucketId;
+
+      if (BucketId < num_buckets_) {
+        AllocatorAddr = first_updated_slab_[BucketId];
+        if (first_updated_lane_id_[BucketId] == ConcurrentSetT<KeyT>::NEXT_PTR_LANE) {
+          AllocatorAddr =
+              (AllocatorAddr == ConcurrentSetT<KeyT>::A_INDEX_POINTER)
+                  ? *(getPointerFromBucket(BucketId, ConcurrentSetT<KeyT>::NEXT_PTR_LANE))
+                  : *(getPointerFromSlab(AllocatorAddr,
+                                         ConcurrentSetT<KeyT>::NEXT_PTR_LANE));
+        }
+      }
+    }
+
+    BucketId = __shfl_sync(0xFFFFFFFF, BucketId, 0, 32);
+    AllocatorAddr = __shfl_sync(0xFFFFFFFF, AllocatorAddr, 0, 32);
+
+    return UpdateIterator(this,
+                          BucketId,
+                          first_updated_slab_,
+                          first_updated_lane_id_,
+                          is_slablist_updated_,
+                          AllocatorAddr);
+  }
+
+  __device__ UpdateIterator UpdateIterEnd() {
+    return UpdateIterator(this,
+                          num_buckets_,
+                          first_updated_slab_,
+                          first_updated_lane_id_,
+                          is_slablist_updated_,
+                          ConcurrentSetT<KeyT>::A_INDEX_POINTER);
   }
 
   /* Semantics of the iterator based operations
@@ -233,6 +316,9 @@ class GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet
   typename ConcurrentSetT<KeyT>::SlabTypeT* d_table_;
   // a copy of dynamic allocator's context to be used on the GPU
   typename AllocPolicy::AllocatorContextT global_allocator_ctx_;
+  uint32_t* first_updated_slab_;
+  uint8_t* first_updated_lane_id_;
+  bool* is_slablist_updated_;
 };
 
 /*
@@ -269,7 +355,12 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet> {
   typename AllocPolicy::DynamicAllocatorT* dynamic_allocator_;
   uint32_t device_idx_;
 
+  uint32_t* first_updated_slab_;
+  uint8_t* first_updated_lane_id_;
+  bool* is_slablist_updated_;
+
  public:
+#if 0
   GpuSlabHash(const uint32_t num_buckets,
               typename AllocPolicy::DynamicAllocatorT* dynamic_allocator,
               uint32_t device_idx,
@@ -313,8 +404,13 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet> {
     gpu_context_.initParameters(
         num_buckets_, hf_.x, hf_.y, d_table_, dynamic_allocator_->getContextPtr());
   }
+#endif
 
-  GpuSlabHash(int8_t *dtable_ptr, uint32_t *last_updated_slab_ptr, const uint32_t num_buckets,
+  GpuSlabHash(int8_t* dtable_ptr,
+              uint32_t* first_updated_slab,
+              uint8_t* first_updated_lane_id,
+              bool* is_slablist_updated,
+              const uint32_t num_buckets,
               typename AllocPolicy::DynamicAllocatorT* dynamic_allocator,
               uint32_t device_idx,
               const time_t seed = 0,
@@ -323,7 +419,10 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet> {
       , d_table_(dtable_ptr)
       , slab_unit_size_(0)
       , dynamic_allocator_(dynamic_allocator)
-      , device_idx_(device_idx) {
+      , device_idx_(device_idx)
+      , first_updated_slab_(first_updated_slab)
+      , first_updated_lane_id_(first_updated_lane_id)
+      , is_slablist_updated_(is_slablist_updated) {
     assert(dynamic_allocator && "No proper dynamic allocator attached to the slab hash.");
     assert(sizeof(typename ConcurrentSetT<KeyT>::SlabTypeT) ==
                (WARP_WIDTH_ * sizeof(uint32_t)) &&
@@ -350,16 +449,23 @@ class GpuSlabHash<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet> {
     }
 
     // initializing the gpu_context_:
-    gpu_context_.initParameters(
-        num_buckets_, hf_.x, hf_.y, d_table_, dynamic_allocator_->getContextPtr());
+
+    gpu_context_.initParameters(num_buckets_,
+                                hf_.x,
+                                hf_.y,
+                                d_table_,
+                                dynamic_allocator_->getContextPtr(),
+                                first_updated_slab_,
+                                first_updated_lane_id_,
+                                is_slablist_updated_);
   }
 
   ~GpuSlabHash() {
-  // TODO: Inspect CUDA Error Invalid Argument
-  #if 0
+// TODO: Inspect CUDA Error Invalid Argument
+#if 0
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
     CHECK_CUDA_ERROR(cudaFree(d_table_));
-  #endif
+#endif
   }
 
   // returns some debug information about the slab hash

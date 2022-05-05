@@ -81,6 +81,10 @@ GpuSlabHashContext<KeyT, ValueT, AllocPolicy, SlabHashTypeT::ConcurrentSet>::ins
                             *reinterpret_cast<const uint32_t*>(
                                 reinterpret_cast<const unsigned char*>(&myKey)));
         new_insertion = (old_key == EMPTY_KEY);
+        if (new_insertion) {
+           is_slablist_updated_[src_bucket] = true;
+        }
+
         if (new_insertion || (old_key == src_key)) {
           to_be_inserted = false;  // succesful insertion
         }
