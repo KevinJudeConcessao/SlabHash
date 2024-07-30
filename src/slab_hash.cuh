@@ -28,11 +28,11 @@
 #include "slab_hash_helper_methods.cuh"
 
 // class declaration:
-#include "slab_iterator.cuh"
-#include "slab_hash_policies.cuh"
 #include "concurrent_map/cmap_class.cuh"
 #include "concurrent_set/cset_class.cuh"
 #include "phase_concurrent_map/pcmap_class.cuh"
+#include "slab_hash_policies.cuh"
+#include "slab_iterator.cuh"
 
 // warp implementations of member functions:
 #include "concurrent_map/warp/count.cuh"
