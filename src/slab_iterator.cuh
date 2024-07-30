@@ -75,7 +75,7 @@ class BucketIterator {
   }
 
   __device__ __forceinline__ BucketIterator<ContainerPolicyT>
-  BucketShuffleSync(unsigned Mask, int SourceLane, int Width = 32) {
+  ShuffleSync(unsigned Mask, int SourceLane, int Width = 32) {
     uint64_t SlabAddr = reinterpret_cast<uint64_t>(SlabHashCtxt);
     uint64_t TheSlabAddr = __shfl_sync(Mask, SlabAddr, SourceLane, Width);
     uint32_t TheBucketId = __shfl_sync(Mask, BucketId, SourceLane, Width);
@@ -185,6 +185,26 @@ class SlabHashIterator {
     return TheBucketIterator;
   }
 
+  __device__ __forceinline__ uint32_t GetAllocatorAddr() {
+    return TheBucketIterator.GetAllocatorAddr();
+  }
+
+  __device__ __forceinline__ uint32_t GetBucketId() {
+    return TheBucketIterator.GetBucketId();
+  }
+
+  __device__ __forceinline__ SlabHashIterator<ContainerPolicyT, BucketIteratorT>
+  ShuffleSync(unsigned Mask, int SourceLane, int Width = 32) {
+    uint64_t SlabAddr = reinterpret_cast<uint64_t>(SlabHashCtxt);
+    uint64_t TheSlabAddr = __shfl_sync(Mask, SlabAddr, SourceLane, Width);
+    uint32_t TheBucketId = __shfl_sync(Mask, GetBucketId(), SourceLane, Width);
+    uint32_t TheAllocatorAddr = __shfl_sync(Mask, GetAllocatorAddr(), SourceLane, Width);
+
+    return {reinterpret_cast<typename ContainerPolicyT::SlabHashContextT*>(TheSlabAddr),
+            TheBucketId,
+            TheAllocatorAddr};
+  }
+
   __device__ SlabHashIterator(
       typename ContainerPolicyT::SlabHashContextT* TheSlabHashCtxt,
       uint32_t TheBucketId,
@@ -196,8 +216,8 @@ class SlabHashIterator {
       const SlabHashIterator<ContainerPolicyT, BucketIteratorT>& Other)
       : SlabHashCtxt{Other.SlabHashCtxt}, TheBucketIterator{Other.TheBucketIterator} {}
 
-  __device__ SlabHashIterator(const BucketIterator<ContainerPolicyT>& Other)
-      : SlabHashCtxt{Other.GetSlabHashCtxt()}, TheBucketIterator{Other} {}
+  // __device__ SlabHashIterator(const BucketIterator<ContainerPolicyT>& Other)
+  //     : SlabHashCtxt{Other.GetSlabHashCtxt()}, TheBucketIterator{Other} {}
 };
 
 template <typename ContainerPolicyT, typename BucketIteratorT>
@@ -226,8 +246,17 @@ class UpdateIterator {
           ++BucketId;
         } while ((BucketId < NumBuckets) && (!IsSlabListUpdated[BucketId]));
 
-        if (BucketId < NumBuckets)
+        if (BucketId < NumBuckets) {
           AllocatorAddr = FirstUpdatedSlab[BucketId];
+
+          if (FirstUpdatedLaneId[BucketId] == SlabInfoT::NEXT_PTR_LANE) {
+            AllocatorAddr = (AllocatorAddr == SlabInfoT::A_INDEX_POINTER)
+                                ? *(SlabHashCtxt->getPointerFromBucket(
+                                      BucketId, SlabInfoT::NEXT_PTR_LANE))
+                                : *(SlabHashCtxt->getPointerFromSlab(
+                                      AllocatorAddr, SlabInfoT::NEXT_PTR_LANE));
+          }
+        }
 
         TheBucketIterator =
             BucketIterator<ContainerPolicyT>(SlabHashCtxt, BucketId, AllocatorAddr);
